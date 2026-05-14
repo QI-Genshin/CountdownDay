@@ -4,15 +4,24 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.countdownday.ui.theme.CountdownDayTheme
+import com.countdownday.ui.theme.Primary
+import com.countdownday.ui.theme.Secondary
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
@@ -20,7 +29,7 @@ data class Anniversary(
     val id: Long,
     val name: String,
     val date: LocalDate,
-    val color: androidx.compose.ui.graphics.Color = Primary
+    val color: Color = Primary
 )
 
 private val sampleData = listOf(
@@ -54,7 +63,10 @@ fun MainScreen() {
         topBar = {
             TopAppBar(
                 title = { Text("倒数日") },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary, titleContentColor = MaterialTheme.colorScheme.onPrimary)
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimary
+                )
             )
         },
         floatingActionButton = {
@@ -67,9 +79,7 @@ fun MainScreen() {
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
                 placeholder = { Text("搜索纪念日...") },
                 singleLine = true
             )
@@ -138,13 +148,13 @@ fun AnniversaryCard(anniversary: Anniversary) {
                 contentAlignment = Alignment.Center
             ) {
                 Box(
-                    modifier = Modifier.size(56.dp).clip(androidx.compose.foundation.shape.CircleShape).background(anniversary.color),
+                    modifier = Modifier.size(56.dp).clip(CircleShape).background(anniversary.color),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         anniversary.name.take(1),
                         style = MaterialTheme.typography.headlineSmall,
-                        color = androidx.compose.ui.graphics.Color.White,
+                        color = Color.White,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -193,7 +203,7 @@ fun AddEditDialog(onDismiss: () -> Unit, onSave: (String, LocalDate) -> Unit) {
                     label = { Text("名称") },
                     modifier = Modifier.fillMaxWidth()
                 )
-                DatePicker(date = date, onDateChange = { date = it })
+                DatePickerField(date = date, onDateChange = { date = it })
             }
         },
         confirmButton = {
@@ -208,17 +218,16 @@ fun AddEditDialog(onDismiss: () -> Unit, onSave: (String, LocalDate) -> Unit) {
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DatePicker(date: LocalDate, onDateChange: (LocalDate) -> Unit) {
-    val datePickerState = rememberDatePickerState(
-        initialSelectedDateMillis = date.toEpochDay() * 24 * 60 * 60 * 1000
-    )
+fun DatePickerField(date: LocalDate, onDateChange: (LocalDate) -> Unit) {
     Column {
-        Text("选择日期", style = MaterialTheme.typography.labelLarge)
+        Text("日期: ${date.year}-${date.monthValue}-${date.dayOfMonth}", style = MaterialTheme.typography.labelLarge)
         Spacer(modifier = Modifier.height(8.dp))
-        OutlinedButton(onClick = { /* Toggle picker */ }) {
-            Text(date.toString())
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { onDateChange(date.minusYears(1)) }) { Text("-1年") }
+            OutlinedButton(onClick = { onDateChange(date.minusMonths(1)) }) { Text("-1月") }
+            OutlinedButton(onClick = { onDateChange(date.plusMonths(1)) }) { Text("+1月") }
+            OutlinedButton(onClick = { onDateChange(date.plusYears(1)) }) { Text("+1年") }
         }
     }
 }
