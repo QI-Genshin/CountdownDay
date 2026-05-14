@@ -4,14 +4,13 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -36,7 +35,6 @@ import com.countdownday.ui.theme.*
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
-import kotlin.random.Random
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -205,7 +203,7 @@ fun BottomNavigationBar(
     val items = listOf(
         BottomNavItem(Screen.HOME, "首页", Icons.Outlined.Home, Icons.Filled.Home),
         BottomNavItem(Screen.NEW, "新建", Icons.Outlined.AddCircle, Icons.Filled.AddCircle),
-        BottomNavItem(Screen.CATEGORY, "分类", Icons.Outlined.Category, Icons.Filled.Category),
+        BottomNavItem(Screen.CATEGORY, "分类", Icons.Outlined.List, Icons.Filled.List),
         BottomNavItem(Screen.MINE, "我的", Icons.Outlined.Person, Icons.Filled.Person)
     )
 
@@ -396,7 +394,7 @@ fun EmptyState(onAddClick: () -> Unit) {
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                Icons.Outlined.Event,
+                Icons.Outlined.DateRange,
                 contentDescription = null,
                 tint = Primary,
                 modifier = Modifier.size(60.dp)
@@ -505,7 +503,7 @@ fun EventCard(
                     }
                     if (event.isPinned) {
                         Icon(
-                            Icons.Filled.PushPin,
+                            Icons.Filled.Star,
                             contentDescription = "置顶",
                             tint = Primary,
                             modifier = Modifier.size(18.dp)
@@ -743,10 +741,10 @@ fun DatePickerField(date: LocalDate, onDateChange: (LocalDate) -> Unit) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 IconButton(onClick = { onDateChange(date.minusYears(1)) }) {
-                    Icon(Icons.Outlined.Remove, contentDescription = "-1年")
+                    Icon(Icons.Outlined.NavigateBefore, contentDescription = "-1年")
                 }
                 IconButton(onClick = { onDateChange(date.minusMonths(1)) }) {
-                    Icon(Icons.Outlined.ChevronLeft, contentDescription = "-1月")
+                    Icon(Icons.Outlined.ArrowBack, contentDescription = "-1月")
                 }
                 Text(
                     date.format(dateFormatter),
@@ -754,10 +752,10 @@ fun DatePickerField(date: LocalDate, onDateChange: (LocalDate) -> Unit) {
                     fontWeight = FontWeight.Medium
                 )
                 IconButton(onClick = { onDateChange(date.plusMonths(1)) }) {
-                    Icon(Icons.Outlined.ChevronRight, contentDescription = "+1月")
+                    Icon(Icons.Outlined.ArrowForward, contentDescription = "+1月")
                 }
                 IconButton(onClick = { onDateChange(date.plusYears(1)) }) {
-                    Icon(Icons.Outlined.Add, contentDescription = "+1年")
+                    Icon(Icons.Outlined.NavigateNext, contentDescription = "+1年")
                 }
             }
         }
@@ -1148,7 +1146,7 @@ fun EventDetailScreen(
                         onClick = onEdit
                     )
                     BottomActionButton(
-                        icon = if (event.isPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
+                        icon = if (event.isPinned) Icons.Filled.Star else Icons.Outlined.Star,
                         label = if (event.isPinned) "取消置顶" else "置顶",
                         onClick = onTogglePin
                     )
@@ -1158,7 +1156,7 @@ fun EventDetailScreen(
                         onClick = onTogglePrivate
                     )
                     BottomActionButton(
-                        icon = Icons.Outlined.Widgets,
+                        icon = Icons.Outlined.GridView,
                         label = "小组件",
                         onClick = { /* Widget */ }
                     )
@@ -1273,7 +1271,7 @@ fun MineScreen() {
                 ) {
                     Column {
                         MineItem(
-                            icon = Icons.Outlined.Brightness6,
+                            icon = Icons.Outlined.LightMode,
                             title = "主题模式",
                             subtitle = when (themeMode) {
                                 ThemeMode.LIGHT -> "浅色"
@@ -1284,7 +1282,7 @@ fun MineScreen() {
                         )
                         Divider(modifier = Modifier.padding(horizontal = 16.dp))
                         MineItem(
-                            icon = Icons.Outlined.Widgets,
+                            icon = Icons.Outlined.GridView,
                             title = "桌面小组件设置",
                             onClick = { /* Widget settings */ }
                         )
@@ -1317,7 +1315,7 @@ fun MineScreen() {
                         )
                         Divider(modifier = Modifier.padding(horizontal = 16.dp))
                         MineItem(
-                            icon = Icons.Outlined.Broom,
+                            icon = Icons.Outlined.Delete,
                             title = "清除缓存",
                             onClick = { /* Clear cache */ }
                         )
@@ -1338,7 +1336,7 @@ fun MineScreen() {
                         )
                         Divider(modifier = Modifier.padding(horizontal = 16.dp))
                         MineItem(
-                            icon = Icons.Outlined.Feedback,
+                            icon = Icons.Outlined.Email,
                             title = "意见反馈",
                             onClick = { /* Feedback */ }
                         )
@@ -1414,7 +1412,7 @@ fun MineItem(
             }
         }
         Icon(
-            Icons.Outlined.ChevronRight,
+            Icons.Outlined.ArrowForward,
             contentDescription = null,
             tint = OnSurfaceVariant
         )
