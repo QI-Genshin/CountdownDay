@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -99,7 +100,7 @@ fun ShiguangCountdownApp() {
                     onEventTogglePin = { event ->
                         events = events.map { if (it.id == event.id) it.copy(isPinned = !it.isPinned) else it }
                     },
-                    onAddClick = { showAddEvent = true }
+                    onAddClick = { currentScreen = Screen.NEW }
                 )
                 Screen.NEW -> AddEditEventScreen(
                     categories = categories,
@@ -741,7 +742,7 @@ fun DatePickerField(date: LocalDate, onDateChange: (LocalDate) -> Unit) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 IconButton(onClick = { onDateChange(date.minusYears(1)) }) {
-                    Icon(Icons.Outlined.NavigateBefore, contentDescription = "-1年")
+                    Icon(Icons.Outlined.KeyboardArrowLeft, contentDescription = "-1年")
                 }
                 IconButton(onClick = { onDateChange(date.minusMonths(1)) }) {
                     Icon(Icons.Outlined.ArrowBack, contentDescription = "-1月")
@@ -755,7 +756,7 @@ fun DatePickerField(date: LocalDate, onDateChange: (LocalDate) -> Unit) {
                     Icon(Icons.Outlined.ArrowForward, contentDescription = "+1月")
                 }
                 IconButton(onClick = { onDateChange(date.plusYears(1)) }) {
-                    Icon(Icons.Outlined.NavigateNext, contentDescription = "+1年")
+                    Icon(Icons.Outlined.KeyboardArrowRight, contentDescription = "+1年")
                 }
             }
         }
@@ -1156,7 +1157,7 @@ fun EventDetailScreen(
                         onClick = onTogglePrivate
                     )
                     BottomActionButton(
-                        icon = Icons.Outlined.GridView,
+                        icon = Icons.Outlined.DateRange,
                         label = "小组件",
                         onClick = { /* Widget */ }
                     )
@@ -1271,7 +1272,7 @@ fun MineScreen() {
                 ) {
                     Column {
                         MineItem(
-                            icon = Icons.Outlined.LightMode,
+                            icon = Icons.Outlined.Settings,
                             title = "主题模式",
                             subtitle = when (themeMode) {
                                 ThemeMode.LIGHT -> "浅色"
@@ -1282,7 +1283,7 @@ fun MineScreen() {
                         )
                         Divider(modifier = Modifier.padding(horizontal = 16.dp))
                         MineItem(
-                            icon = Icons.Outlined.GridView,
+                            icon = Icons.Outlined.DateRange,
                             title = "桌面小组件设置",
                             onClick = { /* Widget settings */ }
                         )
@@ -1309,7 +1310,7 @@ fun MineScreen() {
                 ) {
                     Column {
                         MineItem(
-                            icon = Icons.Outlined.CloudUpload,
+                            icon = Icons.Outlined.Folder,
                             title = "数据备份与恢复",
                             onClick = { /* Backup */ }
                         )
@@ -1336,7 +1337,7 @@ fun MineScreen() {
                         )
                         Divider(modifier = Modifier.padding(horizontal = 16.dp))
                         MineItem(
-                            icon = Icons.Outlined.Email,
+                            icon = Icons.Outlined.Mail,
                             title = "意见反馈",
                             onClick = { /* Feedback */ }
                         )
