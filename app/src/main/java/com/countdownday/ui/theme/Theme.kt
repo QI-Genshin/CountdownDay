@@ -16,29 +16,29 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 private val DarkColorScheme = darkColorScheme(
-    primary = PrimaryDark,
-    secondary = SecondaryDark,
+    primary = PrimaryDarkMode,
+    secondary = SecondaryPink,
     background = BackgroundDark,
     surface = SurfaceDark,
     onPrimary = OnPrimaryDark,
-    onSecondary = OnSecondaryDark,
+    onSecondary = OnPrimaryDark,
     onBackground = OnBackgroundDark,
     onSurface = OnSurfaceDark
 )
 
 private val LightColorScheme = lightColorScheme(
     primary = Primary,
-    secondary = Secondary,
+    secondary = SecondaryPink,
     background = Background,
     surface = Surface,
     onPrimary = OnPrimary,
-    onSecondary = OnSecondary,
+    onSecondary = OnPrimary,
     onBackground = OnBackground,
     onSurface = OnSurface
 )
 
 @Composable
-fun CountdownDayTheme(
+fun ShiguangCountdownTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
@@ -55,7 +55,7 @@ fun CountdownDayTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.primary.toArgb()
+            window.statusBarColor = if (darkTheme) BackgroundDark.toArgb() else Background.toArgb()
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
         }
     }
