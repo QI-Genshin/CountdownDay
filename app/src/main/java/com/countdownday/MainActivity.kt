@@ -8,6 +8,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -27,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -52,6 +54,7 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ShiguangCountdownApp() {
+    val context = LocalContext.current
     var currentScreen by remember { mutableStateOf(Screen.HOME) }
     var events by remember { mutableStateOf(sampleEvents) }
     var categories by remember { mutableStateOf(defaultCategories) }
@@ -63,134 +66,141 @@ fun ShiguangCountdownApp() {
     var eventToDelete by remember { mutableStateOf<Event?>(null) }
     var showPasswordDialog by remember { mutableStateOf(false) }
     var privateEventToView by remember { mutableStateOf<Event?>(null) }
+    var darkThemeEnabled by remember { mutableStateOf(false) }
 
-    Scaffold(
-        bottomBar = {
-            BottomNavigationBar(
-                currentScreen = currentScreen,
-                onScreenSelected = { screen ->
-                    currentScreen = screen
+    ShiguangCountdownTheme(darkTheme = darkThemeEnabled) {
+        Scaffold(
+            bottomBar = {
+                BottomNavigationBar(
+                    currentScreen = currentScreen,
+                    onScreenSelected = { screen ->
+                        currentScreen = screen
+                    }
+                )
+            }
+        ) { paddingValues ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+            ) {
+                when (currentScreen) {
+                    Screen.HOME -> HomeScreen(
+                        events = events,
+                        categories = categories,
+                        selectedCategoryId = selectedCategoryId,
+                        onCategorySelected = { selectedCategoryId = it },
+                        onEventClick = { event ->
+                            if (event.isPrivate) {
+                                privateEventToView = event
+                                showPasswordDialog = true
+                            } else {
+                                selectedEvent = event
+                            }
+                        },
+                        onEventDelete = { event ->
+                            eventToDelete = event
+                            showDeleteDialog = true
+                        },
+                        onEventTogglePin = { event ->
+                            events = events.map { if (it.id == event.id) it.copy(isPinned = !it.isPinned) else it }
+                        },
+                        onAddClick = { currentScreen = Screen.NEW }
+                    )
+                    Screen.NEW -> AddEditEventScreen(
+                        categories = categories,
+                        editingEvent = editingEvent,
+                        onSave = { event ->
+                            if (editingEvent != null) {
+                                events = events.map { if (it.id == editingEvent!!.id) event else it }
+                            } else {
+                                events = events + event
+                            }
+                            showAddEvent = false
+                            editingEvent = null
+                            currentScreen = Screen.HOME
+                        },
+                        onCancel = {
+                            showAddEvent = false
+                            editingEvent = null
+                            currentScreen = Screen.HOME
+                        }
+                    )
+                    Screen.CATEGORY -> CategoryScreen(
+                        categories = categories,
+                        onAddCategory = { category ->
+                            categories = categories + category
+                        },
+                        onEditCategory = { oldCategory, newCategory ->
+                            categories = categories.map { if (it.id == oldCategory.id) newCategory else it }
+                        },
+                        onDeleteCategory = { category ->
+                            if (!category.isSystem) {
+                                categories = categories.filter { it.id != category.id }
+                            }
+                        }
+                    )
+                    Screen.MINE -> MineScreen(
+                        darkThemeEnabled = darkThemeEnabled,
+                        onThemeToggle = { darkThemeEnabled = it }
+                    )
                 }
-            )
-        }
-    ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            when (currentScreen) {
-                Screen.HOME -> HomeScreen(
-                    events = events,
-                    categories = categories,
-                    selectedCategoryId = selectedCategoryId,
-                    onCategorySelected = { selectedCategoryId = it },
-                    onEventClick = { event ->
-                        if (event.isPrivate) {
-                            privateEventToView = event
-                            showPasswordDialog = true
-                        } else {
-                            selectedEvent = event
-                        }
-                    },
-                    onEventDelete = { event ->
-                        eventToDelete = event
-                        showDeleteDialog = true
-                    },
-                    onEventTogglePin = { event ->
-                        events = events.map { if (it.id == event.id) it.copy(isPinned = !it.isPinned) else it }
-                    },
-                    onAddClick = { currentScreen = Screen.NEW }
-                )
-                Screen.NEW -> AddEditEventScreen(
-                    categories = categories,
-                    editingEvent = editingEvent,
-                    onSave = { event ->
-                        if (editingEvent != null) {
-                            events = events.map { if (it.id == editingEvent!!.id) event else it }
-                        } else {
-                            events = events + event
-                        }
-                        showAddEvent = false
-                        editingEvent = null
-                        currentScreen = Screen.HOME
-                    },
-                    onCancel = {
-                        showAddEvent = false
-                        editingEvent = null
-                        currentScreen = Screen.HOME
-                    }
-                )
-                Screen.CATEGORY -> CategoryScreen(
-                    categories = categories,
-                    onAddCategory = { category ->
-                        categories = categories + category
-                    },
-                    onEditCategory = { oldCategory, newCategory ->
-                        categories = categories.map { if (it.id == oldCategory.id) newCategory else it }
-                    },
-                    onDeleteCategory = { category ->
-                        if (!category.isSystem) {
-                            categories = categories.filter { it.id != category.id }
-                        }
-                    }
-                )
-                Screen.MINE -> MineScreen()
-            }
 
-            if (selectedEvent != null) {
-                EventDetailScreen(
-                    event = selectedEvent!!,
-                    category = categories.find { it.id == selectedEvent!!.categoryId }!!,
-                    onEdit = {
-                        editingEvent = selectedEvent
-                        currentScreen = Screen.NEW
-                        selectedEvent = null
-                    },
-                    onDelete = {
-                        eventToDelete = selectedEvent
-                        showDeleteDialog = true
-                        selectedEvent = null
-                    },
-                    onTogglePin = {
-                        events = events.map { if (it.id == selectedEvent!!.id) it.copy(isPinned = !it.isPinned) else it }
-                        selectedEvent = selectedEvent?.copy(isPinned = !selectedEvent!!.isPinned)
-                    },
-                    onTogglePrivate = {
-                        events = events.map { if (it.id == selectedEvent!!.id) it.copy(isPrivate = !it.isPrivate) else it }
-                        selectedEvent = selectedEvent?.copy(isPrivate = !selectedEvent!!.isPrivate)
-                    },
-                    onClose = { selectedEvent = null }
-                )
-            }
+                // 修复点击穿透：事件详情页面添加在最上层并使用点击拦截
+                if (selectedEvent != null) {
+                    EventDetailScreen(
+                        event = selectedEvent!!,
+                        category = categories.find { it.id == selectedEvent!!.categoryId }!!,
+                        onEdit = {
+                            editingEvent = selectedEvent
+                            currentScreen = Screen.NEW
+                            selectedEvent = null
+                        },
+                        onDelete = {
+                            eventToDelete = selectedEvent
+                            showDeleteDialog = true
+                            selectedEvent = null
+                        },
+                        onTogglePin = {
+                            events = events.map { if (it.id == selectedEvent!!.id) it.copy(isPinned = !it.isPinned) else it }
+                            selectedEvent = selectedEvent?.copy(isPinned = !selectedEvent!!.isPinned)
+                        },
+                        onTogglePrivate = {
+                            events = events.map { if (it.id == selectedEvent!!.id) it.copy(isPrivate = !it.isPrivate) else it }
+                            selectedEvent = selectedEvent?.copy(isPrivate = !selectedEvent!!.isPrivate)
+                        },
+                        onClose = { selectedEvent = null }
+                    )
+                }
 
-            if (showDeleteDialog && eventToDelete != null) {
-                DeleteConfirmDialog(
-                    event = eventToDelete!!,
-                    onConfirm = {
-                        events = events.filter { it.id != eventToDelete!!.id }
-                        showDeleteDialog = false
-                        eventToDelete = null
-                    },
-                    onDismiss = {
-                        showDeleteDialog = false
-                        eventToDelete = null
-                    }
-                )
-            }
+                if (showDeleteDialog && eventToDelete != null) {
+                    DeleteConfirmDialog(
+                        event = eventToDelete!!,
+                        onConfirm = {
+                            events = events.filter { it.id != eventToDelete!!.id }
+                            showDeleteDialog = false
+                            eventToDelete = null
+                        },
+                        onDismiss = {
+                            showDeleteDialog = false
+                            eventToDelete = null
+                        }
+                    )
+                }
 
-            if (showPasswordDialog && privateEventToView != null) {
-                PasswordDialog(
-                    onVerify = {
-                        showPasswordDialog = false
-                        selectedEvent = privateEventToView
-                        privateEventToView = null
-                    },
-                    onDismiss = {
-                        showPasswordDialog = false
-                        privateEventToView = null
-                    }
-                )
+                if (showPasswordDialog && privateEventToView != null) {
+                    PasswordDialog(
+                        onVerify = {
+                            showPasswordDialog = false
+                            selectedEvent = privateEventToView
+                            privateEventToView = null
+                        },
+                        onDismiss = {
+                            showPasswordDialog = false
+                            privateEventToView = null
+                        }
+                    )
+                }
             }
         }
     }
@@ -209,7 +219,7 @@ fun BottomNavigationBar(
     )
 
     NavigationBar(
-        containerColor = Surface,
+        containerColor = MaterialTheme.colorScheme.surface,
         tonalElevation = 8.dp
     ) {
         items.forEach { item ->
@@ -230,11 +240,11 @@ fun BottomNavigationBar(
                     )
                 },
                 colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = Primary,
-                    selectedTextColor = Primary,
-                    unselectedIconColor = OnSurfaceVariant,
-                    unselectedTextColor = OnSurfaceVariant,
-                    indicatorColor = PrimaryLight
+                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    indicatorColor = MaterialTheme.colorScheme.primaryContainer
                 )
             )
         }
@@ -267,11 +277,13 @@ fun HomeScreen(
         )
         if (selectedCategoryId == null) sorted else sorted.filter { it.categoryId == selectedCategoryId }
     }
+    val isDark = MaterialTheme.colorScheme.onBackground == OnBackgroundDark
+    val gradientColors = if (isDark) GradientColorsDark else GradientColors
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Background)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         TopAppBar(
             title = {
@@ -279,15 +291,15 @@ fun HomeScreen(
                     "拾光倒数日",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = OnBackground
+                    color = MaterialTheme.colorScheme.onBackground
                 )
             },
             actions = {
                 IconButton(onClick = { /* Search */ }) {
-                    Icon(Icons.Outlined.Search, contentDescription = "搜索", tint = OnBackground)
+                    Icon(Icons.Outlined.Search, contentDescription = "搜索", tint = MaterialTheme.colorScheme.onBackground)
                 }
                 IconButton(onClick = { /* Settings */ }) {
-                    Icon(Icons.Outlined.Settings, contentDescription = "设置", tint = OnBackground)
+                    Icon(Icons.Outlined.Settings, contentDescription = "设置", tint = MaterialTheme.colorScheme.onBackground)
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
@@ -304,7 +316,7 @@ fun HomeScreen(
                 CategoryChip(
                     name = "全部",
                     isSelected = selectedCategoryId == null,
-                    color = Primary,
+                    color = MaterialTheme.colorScheme.primary,
                     onClick = { onCategorySelected(null) }
                 )
             }
@@ -332,7 +344,8 @@ fun HomeScreen(
                         category = category,
                         onClick = { onEventClick(event) },
                         onDelete = { onEventDelete(event) },
-                        onTogglePin = { onEventTogglePin(event) }
+                        onTogglePin = { onEventTogglePin(event) },
+                        isDark = isDark
                     )
                 }
             }
@@ -350,7 +363,7 @@ fun CategoryChip(
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(25.dp),
-        color = if (isSelected) PrimaryLight else Surface,
+        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
         shadowElevation = if (isSelected) 2.dp else 0.dp,
         modifier = Modifier.height(36.dp)
     ) {
@@ -364,7 +377,7 @@ fun CategoryChip(
                     modifier = Modifier
                         .size(6.dp)
                         .clip(CircleShape)
-                        .background(Primary)
+                        .background(MaterialTheme.colorScheme.primary)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
             }
@@ -372,7 +385,7 @@ fun CategoryChip(
                 name,
                 fontSize = 14.sp,
                 fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                color = if (isSelected) OnPrimary else OnSurface
+                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
             )
         }
     }
@@ -391,13 +404,13 @@ fun EmptyState(onAddClick: () -> Unit) {
             modifier = Modifier
                 .size(120.dp)
                 .clip(RoundedCornerShape(18.dp))
-                .background(PrimaryLight),
+                .background(MaterialTheme.colorScheme.primaryContainer),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 Icons.Outlined.DateRange,
                 contentDescription = null,
-                tint = Primary,
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(60.dp)
             )
         }
@@ -406,19 +419,19 @@ fun EmptyState(onAddClick: () -> Unit) {
             "暂无事件",
             fontSize = 18.sp,
             fontWeight = FontWeight.SemiBold,
-            color = OnBackground
+            color = MaterialTheme.colorScheme.onBackground
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             "点击下方 + 添加第一个倒数日",
             fontSize = 14.sp,
-            color = OnSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(modifier = Modifier.height(24.dp))
         Button(
             onClick = onAddClick,
             shape = RoundedCornerShape(25.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Primary),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
             modifier = Modifier.height(50.dp)
         ) {
             Icon(Icons.Outlined.Add, contentDescription = null)
@@ -434,7 +447,8 @@ fun EventCard(
     category: Category,
     onClick: () -> Unit,
     onDelete: () -> Unit,
-    onTogglePin: () -> Unit
+    onTogglePin: () -> Unit,
+    isDark: Boolean
 ) {
     val daysRemaining = ChronoUnit.DAYS.between(LocalDate.now(), event.date)
     val daysText = when {
@@ -442,8 +456,8 @@ fun EventCard(
         daysRemaining > 0L -> "还有 $daysRemaining 天"
         else -> "已过 ${-daysRemaining} 天"
     }
-
     val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+    val gradientColors = if (isDark) GradientColorsDark else GradientColors
 
     Card(
         onClick = onClick,
@@ -458,7 +472,11 @@ fun EventCard(
                 .fillMaxSize()
                 .background(
                     Brush.linearGradient(
-                        colors = if (event.isPrivate) listOf(Color.Gray, Color.LightGray) else event.gradientColors
+                        colors = if (event.isPrivate) {
+                            if (isDark) listOf(Color.DarkGray, Color.Gray) else listOf(Color.Gray, Color.LightGray)
+                        } else {
+                            event.gradientColors
+                        }
                     )
                 )
         ) {
@@ -487,17 +505,17 @@ fun EventCard(
                             event.name,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = OnBackground
+                            color = MaterialTheme.colorScheme.onBackground
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = category.color.copy(alpha = 0.3f)
+                            color = category.color.copy(alpha = if (isDark) 0.4f else 0.3f)
                         ) {
                             Text(
                                 category.name,
                                 fontSize = 11.sp,
-                                color = category.color,
+                                color = if (isDark) Color.White else category.color,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                             )
                         }
@@ -506,7 +524,7 @@ fun EventCard(
                         Icon(
                             Icons.Filled.Star,
                             contentDescription = "置顶",
-                            tint = Primary,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -523,13 +541,13 @@ fun EventCard(
                         Text(
                             event.date.format(dateFormatter),
                             fontSize = 13.sp,
-                            color = OnSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         if (event.note.isNotEmpty()) {
                             Text(
                                 event.note.take(20) + if (event.note.length > 20) "..." else "",
                                 fontSize = 12.sp,
-                                color = OnSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -538,12 +556,12 @@ fun EventCard(
                             if (event.isPrivate) "***" else kotlin.math.abs(daysRemaining).toString(),
                             fontSize = 45.sp,
                             fontWeight = FontWeight.Bold,
-                            color = OnBackground
+                            color = MaterialTheme.colorScheme.onBackground
                         )
                         Text(
                             if (event.isPrivate) "私密事件" else daysText,
                             fontSize = 13.sp,
-                            color = OnSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -567,16 +585,20 @@ fun AddEditEventScreen(
     var isPinned by remember { mutableStateOf(editingEvent?.isPinned ?: false) }
     var isPrivate by remember { mutableStateOf(editingEvent?.isPrivate ?: false) }
     var isWidget by remember { mutableStateOf(editingEvent?.isWidget ?: false) }
-    var selectedGradientIndex by remember { mutableStateOf(
-        editingEvent?.let { e ->
-            GradientColors.indexOfFirst { it == e.gradientColors }
-        }?.takeIf { it >= 0 } ?: 0
-    ) }
+    val isDark = MaterialTheme.colorScheme.onBackground == OnBackgroundDark
+    val gradientColors = if (isDark) GradientColorsDark else GradientColors
+    var selectedGradientIndex by remember {
+        mutableStateOf(
+            editingEvent?.let { e ->
+                gradientColors.indexOfFirst { it == e.gradientColors }
+            }?.takeIf { it >= 0 } ?: 0
+        )
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Background)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         TopAppBar(
             title = {
@@ -584,12 +606,12 @@ fun AddEditEventScreen(
                     if (editingEvent == null) "新增倒数日" else "编辑事件",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = OnBackground
+                    color = MaterialTheme.colorScheme.onBackground
                 )
             },
             navigationIcon = {
                 IconButton(onClick = onCancel) {
-                    Icon(Icons.Outlined.ArrowBack, contentDescription = "返回", tint = OnBackground)
+                    Icon(Icons.Outlined.ArrowBack, contentDescription = "返回", tint = MaterialTheme.colorScheme.onBackground)
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -606,7 +628,11 @@ fun AddEditEventScreen(
                     label = { Text("事件名称") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
-                    singleLine = true
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        cursorColor = MaterialTheme.colorScheme.primary
+                    )
                 )
             }
 
@@ -618,7 +644,7 @@ fun AddEditEventScreen(
             }
 
             item {
-                Text("选择分类", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = OnSurface)
+                Text("选择分类", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
                 Spacer(modifier = Modifier.height(8.dp))
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -627,7 +653,8 @@ fun AddEditEventScreen(
                         CategorySelectionChip(
                             category = category,
                             isSelected = categoryId == category.id,
-                            onClick = { categoryId = category.id }
+                            onClick = { categoryId = category.id },
+                            isDark = isDark
                         )
                     }
                 }
@@ -640,7 +667,11 @@ fun AddEditEventScreen(
                     label = { Text("备注") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
-                    minLines = 3
+                    minLines = 3,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        cursorColor = MaterialTheme.colorScheme.primary
+                    )
                 )
             }
 
@@ -665,14 +696,14 @@ fun AddEditEventScreen(
             }
 
             item {
-                Text("卡片背景", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = OnSurface)
+                Text("卡片背景", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
                 Spacer(modifier = Modifier.height(8.dp))
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(GradientColors.size) { index ->
+                    items(gradientColors.size) { index ->
                         GradientSelectionChip(
-                            colors = GradientColors[index],
+                            colors = gradientColors[index],
                             isSelected = selectedGradientIndex == index,
                             onClick = { selectedGradientIndex = index }
                         )
@@ -691,7 +722,7 @@ fun AddEditEventScreen(
                                 date = date,
                                 categoryId = categoryId,
                                 note = note,
-                                gradientColors = GradientColors[selectedGradientIndex],
+                                gradientColors = gradientColors[selectedGradientIndex],
                                 isPinned = isPinned,
                                 isPrivate = isPrivate,
                                 isWidget = isWidget
@@ -703,7 +734,7 @@ fun AddEditEventScreen(
                         .fillMaxWidth()
                         .height(52.dp),
                     shape = RoundedCornerShape(25.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Primary),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                     enabled = name.isNotEmpty()
                 ) {
                     Text("保存", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
@@ -713,7 +744,7 @@ fun AddEditEventScreen(
                     onClick = onCancel,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("取消", fontSize = 15.sp, color = OnSurfaceVariant)
+                    Text("取消", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -725,14 +756,14 @@ fun DatePickerField(date: LocalDate, onDateChange: (LocalDate) -> Unit) {
     val dateFormatter = DateTimeFormatter.ofPattern("yyyy年MM月dd日")
 
     Column {
-        Text("选择日期", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = OnSurface)
+        Text("选择日期", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
         Spacer(modifier = Modifier.height(8.dp))
         Surface(
             shape = RoundedCornerShape(14.dp),
-            color = Surface,
+            color = MaterialTheme.colorScheme.surface,
             modifier = Modifier
                 .fillMaxWidth()
-                .border(1.dp, OnSurfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(14.dp))
+                .border(1.dp, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(14.dp))
         ) {
             Row(
                 modifier = Modifier
@@ -750,7 +781,8 @@ fun DatePickerField(date: LocalDate, onDateChange: (LocalDate) -> Unit) {
                 Text(
                     date.format(dateFormatter),
                     fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 IconButton(onClick = { onDateChange(date.plusMonths(1)) }) {
                     Icon(Icons.Outlined.ArrowForward, contentDescription = "+1月")
@@ -767,13 +799,14 @@ fun DatePickerField(date: LocalDate, onDateChange: (LocalDate) -> Unit) {
 fun CategorySelectionChip(
     category: Category,
     isSelected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    isDark: Boolean
 ) {
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(25.dp),
-        color = if (isSelected) category.color.copy(alpha = 0.3f) else Surface,
-        border = if (!isSelected) BorderStroke(1.dp, OnSurfaceVariant.copy(alpha = 0.3f)) else null,
+        color = if (isSelected) category.color.copy(alpha = if (isDark) 0.5f else 0.3f) else MaterialTheme.colorScheme.surface,
+        border = if (!isSelected) BorderStroke(1.dp, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)) else null,
         modifier = Modifier.height(40.dp)
     ) {
         Row(
@@ -790,7 +823,7 @@ fun CategorySelectionChip(
             Text(
                 category.name,
                 fontSize = 14.sp,
-                color = OnSurface
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
     }
@@ -808,7 +841,7 @@ fun GradientSelectionChip(
         modifier = Modifier
             .size(50.dp)
             .then(
-                if (isSelected) Modifier.border(3.dp, Primary, RoundedCornerShape(50)) else Modifier
+                if (isSelected) Modifier.border(3.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(50)) else Modifier
             )
     ) {
         Box(
@@ -833,14 +866,14 @@ fun SwitchRow(
         Text(
             title,
             fontSize = 15.sp,
-            color = OnSurface
+            color = MaterialTheme.colorScheme.onSurface
         )
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = Color.White,
-                checkedTrackColor = Primary
+                checkedTrackColor = MaterialTheme.colorScheme.primary
             )
         )
     }
@@ -856,11 +889,13 @@ fun CategoryScreen(
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
     var editingCategory by remember { mutableStateOf<Category?>(null) }
+    val isDark = MaterialTheme.colorScheme.onBackground == OnBackgroundDark
+    val categoryColors = if (isDark) CategoryColorsDark else CategoryColors
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Background)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         TopAppBar(
             title = {
@@ -868,12 +903,12 @@ fun CategoryScreen(
                     "分类管理",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = OnBackground
+                    color = MaterialTheme.colorScheme.onBackground
                 )
             },
             actions = {
                 IconButton(onClick = { showAddDialog = true }) {
-                    Icon(Icons.Outlined.Add, contentDescription = "添加分类", tint = OnBackground)
+                    Icon(Icons.Outlined.Add, contentDescription = "添加分类", tint = MaterialTheme.colorScheme.onBackground)
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -893,7 +928,8 @@ fun CategoryScreen(
                             category = category,
                             modifier = Modifier.weight(1f),
                             onEdit = { editingCategory = category },
-                            onDelete = { onDeleteCategory(category) }
+                            onDelete = { onDeleteCategory(category) },
+                            isDark = isDark
                         )
                     }
                     repeat(3 - row.size) {
@@ -919,7 +955,8 @@ fun CategoryScreen(
             onDismiss = {
                 showAddDialog = false
                 editingCategory = null
-            }
+            },
+            isDark = isDark
         )
     }
 }
@@ -929,7 +966,8 @@ fun CategoryCard(
     category: Category,
     modifier: Modifier = Modifier,
     onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    isDark: Boolean
 ) {
     Card(
         shape = RoundedCornerShape(18.dp),
@@ -946,7 +984,7 @@ fun CategoryCard(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(CircleShape)
-                    .background(category.color.copy(alpha = 0.3f)),
+                    .background(category.color.copy(alpha = if (isDark) 0.4f else 0.3f)),
                 contentAlignment = Alignment.Center
             ) {
                 Box(
@@ -961,7 +999,7 @@ fun CategoryCard(
                 category.name,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
-                color = OnSurface
+                color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(8.dp))
             if (!category.isSystem) {
@@ -969,7 +1007,7 @@ fun CategoryCard(
                     onClick = onEdit,
                     modifier = Modifier.size(28.dp)
                 ) {
-                    Icon(Icons.Outlined.Edit, contentDescription = "编辑", tint = OnSurfaceVariant, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Outlined.Edit, contentDescription = "编辑", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                 }
             }
         }
@@ -980,12 +1018,16 @@ fun CategoryCard(
 fun AddEditCategoryDialog(
     editingCategory: Category?,
     onSave: (Category) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    isDark: Boolean
 ) {
     var name by remember { mutableStateOf(editingCategory?.name ?: "") }
-    var selectedColorIndex by remember { mutableStateOf(
-        editingCategory?.let { c -> CategoryColors.indexOf(c.color) }?.takeIf { it >= 0 } ?: 0
-    ) }
+    val categoryColors = if (isDark) CategoryColorsDark else CategoryColors
+    var selectedColorIndex by remember {
+        mutableStateOf(
+            editingCategory?.let { c -> categoryColors.indexOf(c.color) }?.takeIf { it >= 0 } ?: 0
+        )
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -998,20 +1040,24 @@ fun AddEditCategoryDialog(
                     label = { Text("分类名称") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
-                    singleLine = true
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        cursorColor = MaterialTheme.colorScheme.primary
+                    )
                 )
-                Text("选择颜色", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Text("选择颜色", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(CategoryColors.size) { index ->
+                    items(categoryColors.size) { index ->
                         Box(
                             modifier = Modifier
                                 .size(40.dp)
                                 .clip(CircleShape)
-                                .background(CategoryColors[index])
+                                .background(categoryColors[index])
                                 .clickable { selectedColorIndex = index }
                                 .then(
                                     if (selectedColorIndex == index)
-                                        Modifier.border(3.dp, Primary, CircleShape)
+                                        Modifier.border(3.dp, MaterialTheme.colorScheme.primary, CircleShape)
                                     else
                                         Modifier
                                 )
@@ -1028,7 +1074,7 @@ fun AddEditCategoryDialog(
                             Category(
                                 id = editingCategory?.id ?: System.currentTimeMillis(),
                                 name = name,
-                                color = CategoryColors[selectedColorIndex]
+                                color = categoryColors[selectedColorIndex]
                             )
                         )
                     }
@@ -1059,8 +1105,19 @@ fun EventDetailScreen(
 ) {
     val daysRemaining = ChronoUnit.DAYS.between(LocalDate.now(), event.date)
     val dateFormatter = DateTimeFormatter.ofPattern("yyyy年MM月dd日")
+    val isDark = MaterialTheme.colorScheme.onBackground == OnBackgroundDark
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    // 修复点击穿透问题：添加一个全屏背景层，消耗所有点击事件
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            // 使用无视觉效果的点击处理来阻止事件穿透
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = { }
+            )
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -1074,15 +1131,15 @@ fun EventDetailScreen(
                 title = { },
                 navigationIcon = {
                     IconButton(onClick = onClose) {
-                        Icon(Icons.Outlined.Close, contentDescription = "关闭", tint = OnBackground)
+                        Icon(Icons.Outlined.Close, contentDescription = "关闭", tint = MaterialTheme.colorScheme.onBackground)
                     }
                 },
                 actions = {
                     IconButton(onClick = { /* Share */ }) {
-                        Icon(Icons.Outlined.Share, contentDescription = "分享", tint = OnBackground)
+                        Icon(Icons.Outlined.Share, contentDescription = "分享", tint = MaterialTheme.colorScheme.onBackground)
                     }
                     IconButton(onClick = onDelete) {
-                        Icon(Icons.Outlined.Delete, contentDescription = "删除", tint = OnBackground)
+                        Icon(Icons.Outlined.Delete, contentDescription = "删除", tint = MaterialTheme.colorScheme.onBackground)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -1100,39 +1157,39 @@ fun EventDetailScreen(
                 Text(
                     "距离「${event.name}」",
                     fontSize = 16.sp,
-                    color = OnSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
                     kotlin.math.abs(daysRemaining).toString(),
                     fontSize = 80.sp,
                     fontWeight = FontWeight.Bold,
-                    color = OnBackground
+                    color = MaterialTheme.colorScheme.onBackground
                 )
                 Text(
                     "天",
                     fontSize = 24.sp,
-                    color = OnSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(24.dp))
                 Text(
                     event.date.format(dateFormatter),
                     fontSize = 16.sp,
-                    color = OnSurface
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 if (event.note.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         event.note,
                         fontSize = 14.sp,
-                        color = OnSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
 
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = Surface,
+                color = MaterialTheme.colorScheme.surface,
                 shadowElevation = 8.dp
             ) {
                 Row(
@@ -1180,27 +1237,28 @@ fun BottomActionButton(
         Icon(
             icon,
             contentDescription = label,
-            tint = Primary,
+            tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(28.dp)
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             label,
             fontSize = 12.sp,
-            color = OnSurface
+            color = MaterialTheme.colorScheme.onSurface
         )
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MineScreen() {
-    var themeMode by remember { mutableStateOf(ThemeMode.SYSTEM) }
-
+fun MineScreen(
+    darkThemeEnabled: Boolean,
+    onThemeToggle: (Boolean) -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Background)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         TopAppBar(
             title = { },
@@ -1226,13 +1284,13 @@ fun MineScreen() {
                             modifier = Modifier
                                 .size(64.dp)
                                 .clip(CircleShape)
-                                .background(PrimaryLight),
+                                .background(MaterialTheme.colorScheme.primaryContainer),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 Icons.Outlined.Person,
                                 contentDescription = null,
-                                tint = Primary,
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(32.dp)
                             )
                         }
@@ -1242,13 +1300,13 @@ fun MineScreen() {
                                 "时光记录者",
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = OnSurface
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 "记录每一个重要的日子",
                                 fontSize = 13.sp,
-                                color = OnSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -1274,12 +1332,8 @@ fun MineScreen() {
                         MineItem(
                             icon = Icons.Outlined.Settings,
                             title = "主题模式",
-                            subtitle = when (themeMode) {
-                                ThemeMode.LIGHT -> "浅色"
-                                ThemeMode.DARK -> "深色"
-                                ThemeMode.SYSTEM -> "跟随系统"
-                            },
-                            onClick = { /* Toggle theme */ }
+                            subtitle = if (darkThemeEnabled) "深色" else "浅色",
+                            onClick = { onThemeToggle(!darkThemeEnabled) }
                         )
                         Divider(modifier = Modifier.padding(horizontal = 16.dp))
                         MineItem(
@@ -1349,7 +1403,7 @@ fun MineScreen() {
                 Text(
                     "版本 1.0.0",
                     fontSize = 13.sp,
-                    color = OnSurfaceVariant,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 8.dp),
@@ -1367,12 +1421,12 @@ fun StatItem(value: String, label: String) {
             value,
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
-            color = Primary
+            color = MaterialTheme.colorScheme.primary
         )
         Text(
             label,
             fontSize = 13.sp,
-            color = OnSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -1394,7 +1448,7 @@ fun MineItem(
         Icon(
             icon,
             contentDescription = title,
-            tint = Primary,
+            tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(24.dp)
         )
         Spacer(modifier = Modifier.width(16.dp))
@@ -1402,20 +1456,20 @@ fun MineItem(
             Text(
                 title,
                 fontSize = 15.sp,
-                color = OnSurface
+                color = MaterialTheme.colorScheme.onSurface
             )
             if (subtitle != null) {
                 Text(
                     subtitle,
                     fontSize = 13.sp,
-                    color = OnSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
         Icon(
             Icons.Outlined.ArrowForward,
             contentDescription = null,
-            tint = OnSurfaceVariant
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -1432,7 +1486,7 @@ fun DeleteConfirmDialog(
         text = { Text("确定要删除「${event.name}」吗？删除后不可恢复。") },
         confirmButton = {
             TextButton(onClick = onConfirm) {
-                Text("删除", color = Color.Red)
+                Text("删除", color = MaterialTheme.colorScheme.error)
             }
         },
         dismissButton = {
@@ -1462,7 +1516,11 @@ fun PasswordDialog(
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
-                    singleLine = true
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        cursorColor = MaterialTheme.colorScheme.primary
+                    )
                 )
                 TextButton(onClick = { /* Forgot password */ }) {
                     Text("忘记密码？", fontSize = 13.sp)
