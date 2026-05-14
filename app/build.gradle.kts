@@ -49,14 +49,6 @@ android {
     }
 }
 
-repositories {
-    maven { url = uri("https://repo.huaweicloud.com/repository/maven") }
-    maven { url = uri("https://maven.aliyun.com/repository/google") }
-    maven { url = uri("https://maven.aliyun.com/repository/central") }
-    google()
-    mavenCentral()
-}
-
 dependencies {
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
