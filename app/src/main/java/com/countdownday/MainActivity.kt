@@ -1310,7 +1310,7 @@ fun MineScreen() {
                 ) {
                     Column {
                         MineItem(
-                            icon = Icons.Outlined.FolderOpen,
+                            icon = Icons.Outlined.Build,
                             title = "数据备份与恢复",
                             onClick = { /* Backup */ }
                         )
@@ -1337,7 +1337,7 @@ fun MineScreen() {
                         )
                         Divider(modifier = Modifier.padding(horizontal = 16.dp))
                         MineItem(
-                            icon = Icons.Outlined.Send,
+                            icon = Icons.Outlined.Edit,
                             title = "意见反馈",
                             onClick = { /* Feedback */ }
                         )
