@@ -1107,10 +1107,12 @@ fun EventDetailScreen(
     val dateFormatter = DateTimeFormatter.ofPattern("yyyy年MM月dd日")
     val isDark = MaterialTheme.colorScheme.onBackground == OnBackgroundDark
 
-    // 修复点击穿透问题：添加一个全屏背景层，消耗所有点击事件
+    // 修复点击穿透和透视问题：使用深色半透明背景完全遮挡首页内容
     Box(
         modifier = Modifier
             .fillMaxSize()
+            // 添加深色半透明背景来遮挡首页内容，防止透视
+            .background(Color.Black.copy(alpha = 0.85f))
             // 使用无视觉效果的点击处理来阻止事件穿透
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -1121,9 +1123,13 @@ fun EventDetailScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                // 使用不透明的渐变背景覆盖整个屏幕
                 .background(
                     Brush.verticalGradient(
-                        colors = event.gradientColors
+                        colors = event.gradientColors.map { color ->
+                            // 确保渐变色不透明，防止透视
+                            color.copy(alpha = 1f)
+                        }
                     )
                 )
         ) {
