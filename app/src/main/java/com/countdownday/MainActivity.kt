@@ -69,137 +69,171 @@ fun ShiguangCountdownApp() {
     var darkThemeEnabled by remember { mutableStateOf(false) }
 
     ShiguangCountdownTheme(darkTheme = darkThemeEnabled) {
-        Scaffold(
-            bottomBar = {
-                BottomNavigationBar(
-                    currentScreen = currentScreen,
-                    onScreenSelected = { screen ->
-                        currentScreen = screen
+        // 详情页作为独立页面，不显示导航栏
+        if (selectedEvent != null) {
+            EventDetailScreen(
+                event = selectedEvent!!,
+                category = categories.find { it.id == selectedEvent!!.categoryId }!!,
+                onEdit = {
+                    editingEvent = selectedEvent
+                    currentScreen = Screen.NEW
+                    selectedEvent = null
+                },
+                onDelete = {
+                    eventToDelete = selectedEvent
+                    showDeleteDialog = true
+                    // 不立即关闭详情页，保持在详情页直到用户确认删除
+                },
+                onTogglePin = {
+                    events = events.map { if (it.id == selectedEvent!!.id) it.copy(isPinned = !it.isPinned) else it }
+                    selectedEvent = selectedEvent?.copy(isPinned = !selectedEvent!!.isPinned)
+                },
+                onTogglePrivate = {
+                    events = events.map { if (it.id == selectedEvent!!.id) it.copy(isPrivate = !it.isPrivate) else it }
+                    selectedEvent = selectedEvent?.copy(isPrivate = !selectedEvent!!.isPrivate)
+                },
+                onClose = { selectedEvent = null }
+            )
+
+            // 删除确认对话框
+            if (showDeleteDialog && eventToDelete != null) {
+                DeleteConfirmDialog(
+                    event = eventToDelete!!,
+                    onConfirm = {
+                        events = events.filter { it.id != eventToDelete!!.id }
+                        showDeleteDialog = false
+                        eventToDelete = null
+                        selectedEvent = null // 确认删除后才关闭详情页
+                    },
+                    onDismiss = {
+                        showDeleteDialog = false
+                        eventToDelete = null
                     }
                 )
             }
-        ) { paddingValues ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-            ) {
-                when (currentScreen) {
-                    Screen.HOME -> HomeScreen(
-                        events = events,
-                        categories = categories,
-                        selectedCategoryId = selectedCategoryId,
-                        onCategorySelected = { selectedCategoryId = it },
-                        onEventClick = { event ->
-                            if (event.isPrivate) {
-                                privateEventToView = event
-                                showPasswordDialog = true
-                            } else {
-                                selectedEvent = event
-                            }
-                        },
-                        onEventDelete = { event ->
-                            eventToDelete = event
-                            showDeleteDialog = true
-                        },
-                        onEventTogglePin = { event ->
-                            events = events.map { if (it.id == event.id) it.copy(isPinned = !it.isPinned) else it }
-                        },
-                        onAddClick = { currentScreen = Screen.NEW }
-                    )
-                    Screen.NEW -> AddEditEventScreen(
-                        categories = categories,
-                        editingEvent = editingEvent,
-                        onSave = { event ->
-                            if (editingEvent != null) {
-                                events = events.map { if (it.id == editingEvent!!.id) event else it }
-                            } else {
-                                events = events + event
-                            }
-                            showAddEvent = false
-                            editingEvent = null
-                            currentScreen = Screen.HOME
-                        },
-                        onCancel = {
-                            showAddEvent = false
-                            editingEvent = null
-                            currentScreen = Screen.HOME
-                        }
-                    )
-                    Screen.CATEGORY -> CategoryScreen(
-                        categories = categories,
-                        onAddCategory = { category ->
-                            categories = categories + category
-                        },
-                        onEditCategory = { oldCategory, newCategory ->
-                            categories = categories.map { if (it.id == oldCategory.id) newCategory else it }
-                        },
-                        onDeleteCategory = { category ->
-                            if (!category.isSystem) {
-                                categories = categories.filter { it.id != category.id }
-                            }
-                        }
-                    )
-                    Screen.MINE -> MineScreen(
-                        darkThemeEnabled = darkThemeEnabled,
-                        onThemeToggle = { darkThemeEnabled = it }
-                    )
-                }
 
-                // 修复点击穿透：事件详情页面添加在最上层并使用点击拦截
-                if (selectedEvent != null) {
-                    EventDetailScreen(
-                        event = selectedEvent!!,
-                        category = categories.find { it.id == selectedEvent!!.categoryId }!!,
-                        onEdit = {
-                            editingEvent = selectedEvent
-                            currentScreen = Screen.NEW
-                            selectedEvent = null
-                        },
-                        onDelete = {
-                            eventToDelete = selectedEvent
-                            showDeleteDialog = true
-                            selectedEvent = null
-                        },
-                        onTogglePin = {
-                            events = events.map { if (it.id == selectedEvent!!.id) it.copy(isPinned = !it.isPinned) else it }
-                            selectedEvent = selectedEvent?.copy(isPinned = !selectedEvent!!.isPinned)
-                        },
-                        onTogglePrivate = {
-                            events = events.map { if (it.id == selectedEvent!!.id) it.copy(isPrivate = !it.isPrivate) else it }
-                            selectedEvent = selectedEvent?.copy(isPrivate = !selectedEvent!!.isPrivate)
-                        },
-                        onClose = { selectedEvent = null }
-                    )
-                }
-
-                if (showDeleteDialog && eventToDelete != null) {
-                    DeleteConfirmDialog(
-                        event = eventToDelete!!,
-                        onConfirm = {
-                            events = events.filter { it.id != eventToDelete!!.id }
-                            showDeleteDialog = false
-                            eventToDelete = null
-                        },
-                        onDismiss = {
-                            showDeleteDialog = false
-                            eventToDelete = null
+            // 密码对话框
+            if (showPasswordDialog && privateEventToView != null) {
+                PasswordDialog(
+                    onVerify = {
+                        showPasswordDialog = false
+                        selectedEvent = privateEventToView
+                        privateEventToView = null
+                    },
+                    onDismiss = {
+                        showPasswordDialog = false
+                        privateEventToView = null
+                    }
+                )
+            }
+        } else {
+            // 其他页面显示导航栏
+            Scaffold(
+                bottomBar = {
+                    BottomNavigationBar(
+                        currentScreen = currentScreen,
+                        onScreenSelected = { screen ->
+                            currentScreen = screen
                         }
                     )
                 }
+            ) { paddingValues ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues)
+                ) {
+                    when (currentScreen) {
+                        Screen.HOME -> HomeScreen(
+                            events = events,
+                            categories = categories,
+                            selectedCategoryId = selectedCategoryId,
+                            onCategorySelected = { selectedCategoryId = it },
+                            onEventClick = { event ->
+                                if (event.isPrivate) {
+                                    privateEventToView = event
+                                    showPasswordDialog = true
+                                } else {
+                                    selectedEvent = event
+                                }
+                            },
+                            onEventDelete = { event ->
+                                eventToDelete = event
+                                showDeleteDialog = true
+                            },
+                            onEventTogglePin = { event ->
+                                events = events.map { if (it.id == event.id) it.copy(isPinned = !it.isPinned) else it }
+                            },
+                            onAddClick = { currentScreen = Screen.NEW }
+                        )
+                        Screen.NEW -> AddEditEventScreen(
+                            categories = categories,
+                            editingEvent = editingEvent,
+                            onSave = { event ->
+                                if (editingEvent != null) {
+                                    events = events.map { if (it.id == editingEvent!!.id) event else it }
+                                } else {
+                                    events = events + event
+                                }
+                                showAddEvent = false
+                                editingEvent = null
+                                currentScreen = Screen.HOME
+                            },
+                            onCancel = {
+                                showAddEvent = false
+                                editingEvent = null
+                                currentScreen = Screen.HOME
+                            }
+                        )
+                        Screen.CATEGORY -> CategoryScreen(
+                            categories = categories,
+                            onAddCategory = { category ->
+                                categories = categories + category
+                            },
+                            onEditCategory = { oldCategory, newCategory ->
+                                categories = categories.map { if (it.id == oldCategory.id) newCategory else it }
+                            },
+                            onDeleteCategory = { category ->
+                                if (!category.isSystem) {
+                                    categories = categories.filter { it.id != category.id }
+                                }
+                            }
+                        )
+                        Screen.MINE -> MineScreen(
+                            darkThemeEnabled = darkThemeEnabled,
+                            onThemeToggle = { darkThemeEnabled = it }
+                        )
+                    }
 
-                if (showPasswordDialog && privateEventToView != null) {
-                    PasswordDialog(
-                        onVerify = {
-                            showPasswordDialog = false
-                            selectedEvent = privateEventToView
-                            privateEventToView = null
-                        },
-                        onDismiss = {
-                            showPasswordDialog = false
-                            privateEventToView = null
-                        }
-                    )
+                    // 其他对话框
+                    if (showDeleteDialog && eventToDelete != null) {
+                        DeleteConfirmDialog(
+                            event = eventToDelete!!,
+                            onConfirm = {
+                                events = events.filter { it.id != eventToDelete!!.id }
+                                showDeleteDialog = false
+                                eventToDelete = null
+                            },
+                            onDismiss = {
+                                showDeleteDialog = false
+                                eventToDelete = null
+                            }
+                        )
+                    }
+
+                    if (showPasswordDialog && privateEventToView != null) {
+                        PasswordDialog(
+                            onVerify = {
+                                showPasswordDialog = false
+                                selectedEvent = privateEventToView
+                                privateEventToView = null
+                            },
+                            onDismiss = {
+                                showPasswordDialog = false
+                                privateEventToView = null
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -475,7 +509,7 @@ fun EventCard(
                         colors = if (event.isPrivate) {
                             if (isDark) listOf(Color.DarkGray, Color.Gray) else listOf(Color.Gray, Color.LightGray)
                         } else {
-                            event.gradientColors
+                            if (isDark) event.gradientColorsDark else event.gradientColors
                         }
                     )
                 )
@@ -586,11 +620,12 @@ fun AddEditEventScreen(
     var isPrivate by remember { mutableStateOf(editingEvent?.isPrivate ?: false) }
     var isWidget by remember { mutableStateOf(editingEvent?.isWidget ?: false) }
     val isDark = MaterialTheme.colorScheme.onBackground == OnBackgroundDark
-    val gradientColors = if (isDark) GradientColorsDark else GradientColors
+    // 总是显示浅色渐变供选择，保存时两套都保存
+    val gradientColors = GradientColors
     var selectedGradientIndex by remember {
         mutableStateOf(
             editingEvent?.let { e ->
-                gradientColors.indexOfFirst { it == e.gradientColors }
+                GradientColors.indexOfFirst { it == e.gradientColors }
             }?.takeIf { it >= 0 } ?: 0
         )
     }
@@ -722,7 +757,8 @@ fun AddEditEventScreen(
                                 date = date,
                                 categoryId = categoryId,
                                 note = note,
-                                gradientColors = gradientColors[selectedGradientIndex],
+                                gradientColors = GradientColors[selectedGradientIndex],
+                                gradientColorsDark = GradientColorsDark[selectedGradientIndex],
                                 isPinned = isPinned,
                                 isPrivate = isPrivate,
                                 isWidget = isWidget
@@ -1106,6 +1142,8 @@ fun EventDetailScreen(
     val daysRemaining = ChronoUnit.DAYS.between(LocalDate.now(), event.date)
     val dateFormatter = DateTimeFormatter.ofPattern("yyyy年MM月dd日")
     val isDark = MaterialTheme.colorScheme.onBackground == OnBackgroundDark
+    // 根据主题选择对应的渐变背景
+    val currentGradientColors = if (isDark) event.gradientColorsDark else event.gradientColors
 
     // 修复点击穿透和透视问题：使用深色半透明背景完全遮挡首页内容
     Box(
@@ -1123,10 +1161,10 @@ fun EventDetailScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                // 使用不透明的渐变背景覆盖整个屏幕
+                // 使用不透明的渐变背景覆盖整个屏幕，根据主题选择
                 .background(
                     Brush.verticalGradient(
-                        colors = event.gradientColors.map { color ->
+                        colors = currentGradientColors.map { color ->
                             // 确保渐变色不透明，防止透视
                             color.copy(alpha = 1f)
                         }

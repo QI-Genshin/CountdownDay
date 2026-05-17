@@ -21,6 +21,7 @@ data class Event(
     val categoryId: Long,
     val note: String = "",
     val gradientColors: List<Color> = GradientColors[0],
+    val gradientColorsDark: List<Color> = GradientColorsDark[0],
     val isPinned: Boolean = false,
     val isPrivate: Boolean = false,
     val isWidget: Boolean = false,
@@ -54,6 +55,7 @@ val sampleEvents = listOf(
         categoryId = 1,
         note = "邀请好朋友们来家里吃饭",
         gradientColors = GradientColors[0],
+        gradientColorsDark = GradientColorsDark[0],
         isPinned = true
     ),
     Event(
@@ -63,6 +65,7 @@ val sampleEvents = listOf(
         categoryId = 2,
         note = "一起去看海",
         gradientColors = GradientColors[1],
+        gradientColorsDark = GradientColorsDark[1],
         isPinned = false
     ),
     Event(
@@ -72,6 +75,7 @@ val sampleEvents = listOf(
         categoryId = 3,
         note = "好好复习，争取考个好成绩",
         gradientColors = GradientColors[2],
+        gradientColorsDark = GradientColorsDark[2],
         isPinned = false
     )
 )
