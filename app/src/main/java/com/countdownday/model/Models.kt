@@ -3,6 +3,7 @@ package com.countdownday.model
 import androidx.compose.ui.graphics.Color
 import com.countdownday.ui.theme.CategoryColors
 import com.countdownday.ui.theme.GradientColors
+import com.countdownday.ui.theme.GradientColorsDark
 import java.time.LocalDate
 
 // 分类数据类
