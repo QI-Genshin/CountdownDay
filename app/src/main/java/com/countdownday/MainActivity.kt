@@ -1,7 +1,9 @@
 package com.countdownday
 
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.BorderStroke
@@ -40,6 +42,8 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 
 class MainActivity : ComponentActivity() {
+    private var lastBackPressTime: Long = 0
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -48,6 +52,12 @@ class MainActivity : ComponentActivity() {
                 ShiguangCountdownApp()
             }
         }
+    }
+    
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        // 这个方法已被废弃，但用于处理返回键
+        finish()
     }
 }
 
@@ -69,6 +79,30 @@ fun ShiguangCountdownApp() {
     var darkThemeEnabled by remember { mutableStateOf(false) }
 
     ShiguangCountdownTheme(darkTheme = darkThemeEnabled) {
+        // 返回键处理逻辑
+        var lastBackPressTime by remember { mutableLongStateOf(0L) }
+        
+        BackHandler {
+            if (selectedEvent != null) {
+                // 如果在详情页，关闭详情页
+                selectedEvent = null
+            } else if (currentScreen != Screen.HOME) {
+                // 如果不在首页，返回到首页
+                currentScreen = Screen.HOME
+            } else {
+                // 如果在首页，显示退出提示
+                val currentTime = System.currentTimeMillis()
+                if (currentTime - lastBackPressTime < 2000) {
+                    // 两次返回键间隔小于2秒，退出应用
+                    (context as? ComponentActivity)?.finish()
+                } else {
+                    // 首次按返回键，显示提示
+                    Toast.makeText(context, "再按一次退出应用", Toast.LENGTH_SHORT).show()
+                    lastBackPressTime = currentTime
+                }
+            }
+        }
+        
         // 详情页作为独立页面，不显示导航栏
         if (selectedEvent != null) {
             EventDetailScreen(
@@ -200,8 +234,10 @@ fun ShiguangCountdownApp() {
                             }
                         )
                         Screen.MINE -> MineScreen(
+                            categories = categories,
                             darkThemeEnabled = darkThemeEnabled,
-                            onThemeToggle = { darkThemeEnabled = it }
+                            onThemeToggle = { darkThemeEnabled = it },
+                            onCategoryManage = { currentScreen = Screen.CATEGORY }
                         )
                     }
 
@@ -248,7 +284,6 @@ fun BottomNavigationBar(
     val items = listOf(
         BottomNavItem(Screen.HOME, "首页", Icons.Outlined.Home, Icons.Filled.Home),
         BottomNavItem(Screen.NEW, "新建", Icons.Outlined.AddCircle, Icons.Filled.AddCircle),
-        BottomNavItem(Screen.CATEGORY, "分类", Icons.Outlined.List, Icons.Filled.List),
         BottomNavItem(Screen.MINE, "我的", Icons.Outlined.Person, Icons.Filled.Person)
     )
 
@@ -331,9 +366,6 @@ fun HomeScreen(
             actions = {
                 IconButton(onClick = { /* Search */ }) {
                     Icon(Icons.Outlined.Search, contentDescription = "搜索", tint = MaterialTheme.colorScheme.onBackground)
-                }
-                IconButton(onClick = { /* Settings */ }) {
-                    Icon(Icons.Outlined.Settings, contentDescription = "设置", tint = MaterialTheme.colorScheme.onBackground)
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
@@ -498,8 +530,7 @@ fun EventCard(
         shape = RoundedCornerShape(18.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .height(140.dp),
-        elevation = CardDefaults.cardElevation(2.dp)
+            .height(140.dp)
     ) {
         Box(
             modifier = Modifier
@@ -799,7 +830,6 @@ fun DatePickerField(date: LocalDate, onDateChange: (LocalDate) -> Unit) {
             color = MaterialTheme.colorScheme.surface,
             modifier = Modifier
                 .fillMaxWidth()
-                .border(1.dp, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(14.dp))
         ) {
             Row(
                 modifier = Modifier
@@ -1007,7 +1037,6 @@ fun CategoryCard(
 ) {
     Card(
         shape = RoundedCornerShape(18.dp),
-        elevation = CardDefaults.cardElevation(2.dp),
         modifier = modifier
     ) {
         Column(
@@ -1296,8 +1325,10 @@ fun BottomActionButton(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MineScreen(
+    categories: List<Category>,
     darkThemeEnabled: Boolean,
-    onThemeToggle: (Boolean) -> Unit
+    onThemeToggle: (Boolean) -> Unit,
+    onCategoryManage: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -1315,8 +1346,7 @@ fun MineScreen(
         ) {
             item {
                 Card(
-                    shape = RoundedCornerShape(18.dp),
-                    elevation = CardDefaults.cardElevation(2.dp)
+                    shape = RoundedCornerShape(18.dp)
                 ) {
                     Row(
                         modifier = Modifier
@@ -1369,8 +1399,7 @@ fun MineScreen(
 
             item {
                 Card(
-                    shape = RoundedCornerShape(18.dp),
-                    elevation = CardDefaults.cardElevation(2.dp)
+                    shape = RoundedCornerShape(18.dp)
                 ) {
                     Column {
                         MineItem(
@@ -1378,6 +1407,13 @@ fun MineScreen(
                             title = "主题模式",
                             subtitle = if (darkThemeEnabled) "深色" else "浅色",
                             onClick = { onThemeToggle(!darkThemeEnabled) }
+                        )
+                        Divider(modifier = Modifier.padding(horizontal = 16.dp))
+                        MineItem(
+                            icon = Icons.Outlined.List,
+                            title = "分类管理",
+                            subtitle = "共 ${categories.size} 个分类",
+                            onClick = onCategoryManage
                         )
                         Divider(modifier = Modifier.padding(horizontal = 16.dp))
                         MineItem(
@@ -1403,8 +1439,7 @@ fun MineScreen(
 
             item {
                 Card(
-                    shape = RoundedCornerShape(18.dp),
-                    elevation = CardDefaults.cardElevation(2.dp)
+                    shape = RoundedCornerShape(18.dp)
                 ) {
                     Column {
                         MineItem(
@@ -1424,8 +1459,7 @@ fun MineScreen(
 
             item {
                 Card(
-                    shape = RoundedCornerShape(18.dp),
-                    elevation = CardDefaults.cardElevation(2.dp)
+                    shape = RoundedCornerShape(18.dp)
                 ) {
                     Column {
                         MineItem(
