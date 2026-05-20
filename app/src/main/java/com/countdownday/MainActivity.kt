@@ -1,5 +1,6 @@
 package com.countdownday
 
+import android.content.Context
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -58,9 +59,23 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun ShiguangCountdownApp() {
     val context = LocalContext.current
+    
+    // 从本地存储加载数据
+    val (events, setEvents) = remember {
+        val savedEvents = loadEvents(context)
+        mutableStateOf(savedEvents ?: sampleEvents)
+    }
+    
+    val (categories, setCategories) = remember {
+        val savedCategories = loadCategories(context)
+        mutableStateOf(savedCategories ?: defaultCategories)
+    }
+    
+    var darkThemeEnabled by remember {
+        mutableStateOf(loadDarkTheme(context))
+    }
+    
     var currentScreen by remember { mutableStateOf(Screen.HOME) }
-    var events by remember { mutableStateOf(sampleEvents) }
-    var categories by remember { mutableStateOf(defaultCategories) }
     var selectedCategoryId by remember { mutableStateOf<Long?>(null) }
     var showAddEvent by remember { mutableStateOf(false) }
     var editingEvent by remember { mutableStateOf<Event?>(null) }
@@ -69,8 +84,13 @@ fun ShiguangCountdownApp() {
     var eventToDelete by remember { mutableStateOf<Event?>(null) }
     var showPasswordDialog by remember { mutableStateOf(false) }
     var privateEventToView by remember { mutableStateOf<Event?>(null) }
-    var darkThemeEnabled by remember { mutableStateOf(false) }
     var showWidgetDialog by remember { mutableStateOf(false) }
+    var showBackupDialog by remember { mutableStateOf(false) }
+
+    // 数据变化时自动保存
+    LaunchedEffect(events, categories, darkThemeEnabled) {
+        saveData(context, events, categories, darkThemeEnabled)
+    }
 
     ShiguangCountdownTheme(darkTheme = darkThemeEnabled) {
         // 返回键处理逻辑
@@ -78,19 +98,14 @@ fun ShiguangCountdownApp() {
         
         BackHandler {
             if (selectedEvent != null) {
-                // 如果在详情页，关闭详情页
                 selectedEvent = null
             } else if (currentScreen != Screen.HOME) {
-                // 如果不在首页，返回到首页
                 currentScreen = Screen.HOME
             } else {
-                // 如果在首页，显示退出提示
                 val currentTime = System.currentTimeMillis()
                 if (currentTime - lastBackPressTime < 2000) {
-                    // 两次返回键间隔小于2秒，退出应用
                     (context as? ComponentActivity)?.finish()
                 } else {
-                    // 首次按返回键，显示提示
                     Toast.makeText(context, "再按一次退出应用", Toast.LENGTH_SHORT).show()
                     lastBackPressTime = currentTime
                 }
@@ -110,14 +125,13 @@ fun ShiguangCountdownApp() {
                 onDelete = {
                     eventToDelete = selectedEvent
                     showDeleteDialog = true
-                    // 不立即关闭详情页，保持在详情页直到用户确认删除
                 },
                 onTogglePin = {
-                    events = events.map { if (it.id == selectedEvent!!.id) it.copy(isPinned = !it.isPinned) else it }
+                    setEvents(events.map { if (it.id == selectedEvent!!.id) it.copy(isPinned = !it.isPinned) else it })
                     selectedEvent = selectedEvent?.copy(isPinned = !selectedEvent!!.isPinned)
                 },
                 onTogglePrivate = {
-                    events = events.map { if (it.id == selectedEvent!!.id) it.copy(isPrivate = !it.isPrivate) else it }
+                    setEvents(events.map { if (it.id == selectedEvent!!.id) it.copy(isPrivate = !it.isPrivate) else it })
                     selectedEvent = selectedEvent?.copy(isPrivate = !selectedEvent!!.isPrivate)
                 },
                 onClose = { selectedEvent = null },
@@ -129,10 +143,10 @@ fun ShiguangCountdownApp() {
                 DeleteConfirmDialog(
                     event = eventToDelete!!,
                     onConfirm = {
-                        events = events.filter { it.id != eventToDelete!!.id }
+                        setEvents(events.filter { it.id != eventToDelete!!.id })
                         showDeleteDialog = false
                         eventToDelete = null
-                        selectedEvent = null // 确认删除后才关闭详情页
+                        selectedEvent = null
                     },
                     onDismiss = {
                         showDeleteDialog = false
@@ -146,7 +160,6 @@ fun ShiguangCountdownApp() {
                 WidgetConfigDialog(
                     event = selectedEvent!!,
                     onConfirm = { widgetId ->
-                        // 保存到Widget
                         CountdownWidgetProvider.saveEventToWidget(
                             context = context,
                             appWidgetId = widgetId,
@@ -154,18 +167,14 @@ fun ShiguangCountdownApp() {
                             eventDate = selectedEvent!!.date.toString(),
                             eventId = selectedEvent!!.id
                         )
-                        // 通知Widget更新
                         val intent = android.content.Intent(context, CountdownWidgetProvider::class.java).apply {
                             action = android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE
                         }
                         context.sendBroadcast(intent)
-                        
                         Toast.makeText(context, "已添加到桌面小组件", Toast.LENGTH_SHORT).show()
                         showWidgetDialog = false
                     },
-                    onDismiss = {
-                        showWidgetDialog = false
-                    }
+                    onDismiss = { showWidgetDialog = false }
                 )
             }
 
@@ -219,7 +228,7 @@ fun ShiguangCountdownApp() {
                                 showDeleteDialog = true
                             },
                             onEventTogglePin = { event ->
-                                events = events.map { if (it.id == event.id) it.copy(isPinned = !it.isPinned) else it }
+                                setEvents(events.map { if (it.id == event.id) it.copy(isPinned = !it.isPinned) else it })
                             },
                             onAddClick = { currentScreen = Screen.NEW }
                         )
@@ -228,9 +237,9 @@ fun ShiguangCountdownApp() {
                             editingEvent = editingEvent,
                             onSave = { event ->
                                 if (editingEvent != null) {
-                                    events = events.map { if (it.id == editingEvent!!.id) event else it }
+                                    setEvents(events.map { if (it.id == editingEvent!!.id) event else it })
                                 } else {
-                                    events = events + event
+                                    setEvents(events + event)
                                 }
                                 showAddEvent = false
                                 editingEvent = null
@@ -245,31 +254,33 @@ fun ShiguangCountdownApp() {
                         Screen.CATEGORY -> CategoryScreen(
                             categories = categories,
                             onAddCategory = { category ->
-                                categories = categories + category
+                                setCategories(categories + category)
                             },
                             onEditCategory = { oldCategory, newCategory ->
-                                categories = categories.map { if (it.id == oldCategory.id) newCategory else it }
+                                setCategories(categories.map { if (it.id == oldCategory.id) newCategory else it })
                             },
                             onDeleteCategory = { category ->
                                 if (!category.isSystem) {
-                                    categories = categories.filter { it.id != category.id }
+                                    setCategories(categories.filter { it.id != category.id })
                                 }
                             }
                         )
                         Screen.MINE -> MineScreen(
                             categories = categories,
+                            events = events,
                             darkThemeEnabled = darkThemeEnabled,
                             onThemeToggle = { darkThemeEnabled = it },
-                            onCategoryManage = { currentScreen = Screen.CATEGORY }
+                            onCategoryManage = { currentScreen = Screen.CATEGORY },
+                            onBackupClick = { showBackupDialog = true }
                         )
                     }
 
-                    // 其他对话框
+                    // 删除确认对话框
                     if (showDeleteDialog && eventToDelete != null) {
                         DeleteConfirmDialog(
                             event = eventToDelete!!,
                             onConfirm = {
-                                events = events.filter { it.id != eventToDelete!!.id }
+                                setEvents(events.filter { it.id != eventToDelete!!.id })
                                 showDeleteDialog = false
                                 eventToDelete = null
                             },
@@ -280,6 +291,29 @@ fun ShiguangCountdownApp() {
                         )
                     }
 
+                    // 备份对话框
+                    if (showBackupDialog) {
+                        BackupDialog(
+                            context = context,
+                            events = events,
+                            categories = categories,
+                            darkThemeEnabled = darkThemeEnabled,
+                            onBackupSuccess = { path ->
+                                Toast.makeText(context, "备份成功！\n$path", Toast.LENGTH_LONG).show()
+                                showBackupDialog = false
+                            },
+                            onRestore = { newEvents, newCategories, newDarkTheme ->
+                                setEvents(newEvents)
+                                setCategories(newCategories)
+                                darkThemeEnabled = newDarkTheme
+                                Toast.makeText(context, "恢复成功！", Toast.LENGTH_SHORT).show()
+                                showBackupDialog = false
+                            },
+                            onDismiss = { showBackupDialog = false }
+                        )
+                    }
+
+                    // 密码对话框
                     if (showPasswordDialog && privateEventToView != null) {
                         PasswordDialog(
                             onVerify = {
@@ -297,6 +331,84 @@ fun ShiguangCountdownApp() {
             }
         }
     }
+}
+
+// 数据存储相关函数
+private const val PREFS_NAME = "CountdownDayPrefs"
+private const val KEY_EVENTS = "events"
+private const val KEY_CATEGORIES = "categories"
+private const val KEY_DARK_THEME = "darkTheme"
+
+private fun saveData(context: Context, events: List<Event>, categories: List<Category>, darkThemeEnabled: Boolean) {
+    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    val eventsStr = events.joinToString("|||") { event ->
+        "${event.id}|${event.name}|${event.date}|${event.categoryId}|${event.note}|${event.isPinned}|${event.isPrivate}|${event.isWidget}|${event.gradientColors.joinToString(",")}|${event.gradientColorsDark.joinToString(",")}"
+    }
+    val categoriesStr = categories.joinToString("|||") { category ->
+        "${category.id}|${category.name}|${category.color}|${category.isSystem}"
+    }
+    
+    prefs.edit().apply {
+        putString(KEY_EVENTS, eventsStr)
+        putString(KEY_CATEGORIES, categoriesStr)
+        putBoolean(KEY_DARK_THEME, darkThemeEnabled)
+        apply()
+    }
+}
+
+private fun loadEvents(context: Context): List<Event>? {
+    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    val eventsStr = prefs.getString(KEY_EVENTS, null) ?: return null
+    
+    return try {
+        eventsStr.split("|||").mapNotNull { eventStr ->
+            if (eventStr.isEmpty()) return@mapNotNull null
+            val parts = eventStr.split("|")
+            if (parts.size >= 10) {
+                Event(
+                    id = parts[0].toLongOrNull() ?: System.currentTimeMillis(),
+                    name = parts[1],
+                    date = try { LocalDate.parse(parts[2]) } catch (e: Exception) { LocalDate.now() },
+                    categoryId = parts[3].toLongOrNull() ?: 1L,
+                    note = parts[4],
+                    isPinned = parts[5].toBoolean(),
+                    isPrivate = parts[6].toBoolean(),
+                    isWidget = parts[7].toBoolean(),
+                    gradientColors = parts[8].split(",").map { Color(android.graphics.Color.parseColor(it)) },
+                    gradientColorsDark = parts[9].split(",").map { Color(android.graphics.Color.parseColor(it)) }
+                )
+            } else null
+        }
+    } catch (e: Exception) {
+        null
+    }
+}
+
+private fun loadCategories(context: Context): List<Category>? {
+    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    val categoriesStr = prefs.getString(KEY_CATEGORIES, null) ?: return null
+    
+    return try {
+        categoriesStr.split("|||").mapNotNull { categoryStr ->
+            if (categoryStr.isEmpty()) return@mapNotNull null
+            val parts = categoryStr.split("|")
+            if (parts.size >= 4) {
+                Category(
+                    id = parts[0].toLongOrNull() ?: System.currentTimeMillis(),
+                    name = parts[1],
+                    color = Color(android.graphics.Color.parseColor(parts[2])),
+                    isSystem = parts[3].toBoolean()
+                )
+            } else null
+        }
+    } catch (e: Exception) {
+        null
+    }
+}
+
+private fun loadDarkTheme(context: Context): Boolean {
+    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    return prefs.getBoolean(KEY_DARK_THEME, false)
 }
 
 @Composable
@@ -370,7 +482,6 @@ fun HomeScreen(
         if (selectedCategoryId == null) sorted else sorted.filter { it.categoryId == selectedCategoryId }
     }
     val isDark = MaterialTheme.colorScheme.onBackground == OnBackgroundDark
-    val gradientColors = if (isDark) GradientColorsDark else GradientColors
 
     Column(
         modifier = Modifier
@@ -391,9 +502,7 @@ fun HomeScreen(
                     Icon(Icons.Outlined.Search, contentDescription = "搜索", tint = MaterialTheme.colorScheme.onBackground)
                 }
             },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = Color.Transparent
-            )
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
         )
 
         LazyRow(
@@ -674,7 +783,6 @@ fun AddEditEventScreen(
     var isPrivate by remember { mutableStateOf(editingEvent?.isPrivate ?: false) }
     var isWidget by remember { mutableStateOf(editingEvent?.isWidget ?: false) }
     val isDark = MaterialTheme.colorScheme.onBackground == OnBackgroundDark
-    // 总是显示浅色渐变供选择，保存时两套都保存
     val gradientColors = GradientColors
     var selectedGradientIndex by remember {
         mutableStateOf(
@@ -851,8 +959,7 @@ fun DatePickerField(date: LocalDate, onDateChange: (LocalDate) -> Unit) {
         Surface(
             shape = RoundedCornerShape(14.dp),
             color = MaterialTheme.colorScheme.surface,
-            modifier = Modifier
-                .fillMaxWidth()
+            modifier = Modifier.fillMaxWidth()
         ) {
             Row(
                 modifier = Modifier
@@ -995,6 +1102,11 @@ fun CategoryScreen(
                     color = MaterialTheme.colorScheme.onBackground
                 )
             },
+            navigationIcon = {
+                IconButton(onClick = { /* Nav back */ }) {
+                    Icon(Icons.Outlined.ArrowBack, contentDescription = "返回", tint = MaterialTheme.colorScheme.onBackground)
+                }
+            },
             actions = {
                 IconButton(onClick = { showAddDialog = true }) {
                     Icon(Icons.Outlined.Add, contentDescription = "添加分类", tint = MaterialTheme.colorScheme.onBackground)
@@ -1091,11 +1203,21 @@ fun CategoryCard(
             )
             Spacer(modifier = Modifier.height(8.dp))
             if (!category.isSystem) {
-                IconButton(
-                    onClick = onEdit,
-                    modifier = Modifier.size(28.dp)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(Icons.Outlined.Edit, contentDescription = "编辑", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                    IconButton(
+                        onClick = onEdit,
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(Icons.Outlined.Edit, contentDescription = "编辑", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                    }
+                    IconButton(
+                        onClick = onDelete,
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(Icons.Outlined.Delete, contentDescription = "删除", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                    }
                 }
             }
         }
@@ -1195,16 +1317,12 @@ fun EventDetailScreen(
     val daysRemaining = ChronoUnit.DAYS.between(LocalDate.now(), event.date)
     val dateFormatter = DateTimeFormatter.ofPattern("yyyy年MM月dd日")
     val isDark = MaterialTheme.colorScheme.onBackground == OnBackgroundDark
-    // 根据主题选择对应的渐变背景
     val currentGradientColors = if (isDark) event.gradientColorsDark else event.gradientColors
 
-    // 修复点击穿透和透视问题：使用深色半透明背景完全遮挡首页内容
     Box(
         modifier = Modifier
             .fillMaxSize()
-            // 添加深色半透明背景来遮挡首页内容，防止透视
             .background(Color.Black.copy(alpha = 0.85f))
-            // 使用无视觉效果的点击处理来阻止事件穿透
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -1214,13 +1332,9 @@ fun EventDetailScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                // 使用不透明的渐变背景覆盖整个屏幕，根据主题选择
                 .background(
                     Brush.verticalGradient(
-                        colors = currentGradientColors.map { color ->
-                            // 确保渐变色不透明，防止透视
-                            color.copy(alpha = 1f)
-                        }
+                        colors = currentGradientColors.map { color -> color.copy(alpha = 1f) }
                     )
                 )
         ) {
@@ -1350,10 +1464,21 @@ fun BottomActionButton(
 @Composable
 fun MineScreen(
     categories: List<Category>,
+    events: List<Event>,
     darkThemeEnabled: Boolean,
     onThemeToggle: (Boolean) -> Unit,
-    onCategoryManage: () -> Unit
+    onCategoryManage: () -> Unit,
+    onBackupClick: () -> Unit
 ) {
+    // 计算统计数据
+    val today = LocalDate.now()
+    val totalEvents = events.size
+    val completedEvents = events.count { it.date.isBefore(today) }
+    val upcomingEvents = events.count { it.date.isAfter(today) }
+    val pinnedEvents = events.count { it.isPinned }
+    val importantDays = listOf("生日", "纪念日", "节日")
+    val hasImportantEvents = events.any { e -> importantDays.any { k -> e.name.contains(k) } }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1368,6 +1493,7 @@ fun MineScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // 用户信息卡片
             item {
                 Card(
                     shape = RoundedCornerShape(18.dp)
@@ -1395,7 +1521,7 @@ fun MineScreen(
                         Spacer(modifier = Modifier.width(16.dp))
                         Column {
                             Text(
-                                "时光记录者",
+                                "拾光记录者",
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -1411,16 +1537,37 @@ fun MineScreen(
                 }
             }
 
+            // 统计卡片
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
+                Card(
+                    shape = RoundedCornerShape(18.dp)
                 ) {
-                    StatItem(value = "5", label = "已记录")
-                    StatItem(value = "2", label = "已完成")
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp)
+                    ) {
+                        Text(
+                            "数据统计",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            StatItem(value = totalEvents.toString(), label = "已记录")
+                            StatItem(value = completedEvents.toString(), label = "已完成")
+                            StatItem(value = upcomingEvents.toString(), label = "待实现")
+                            StatItem(value = pinnedEvents.toString(), label = "已置顶")
+                        }
+                    }
                 }
             }
 
+            // 功能设置卡片
             item {
                 Card(
                     shape = RoundedCornerShape(18.dp)
@@ -1461,15 +1608,17 @@ fun MineScreen(
                 }
             }
 
+            // 数据管理卡片
             item {
                 Card(
                     shape = RoundedCornerShape(18.dp)
                 ) {
                     Column {
                         MineItem(
-                            icon = Icons.Outlined.Build,
+                            icon = Icons.Outlined.CloudUpload,
                             title = "数据备份与恢复",
-                            onClick = { /* Backup */ }
+                            subtitle = "保护你的数据",
+                            onClick = onBackupClick
                         )
                         Divider(modifier = Modifier.padding(horizontal = 16.dp))
                         MineItem(
@@ -1481,6 +1630,7 @@ fun MineScreen(
                 }
             }
 
+            // 关于卡片
             item {
                 Card(
                     shape = RoundedCornerShape(18.dp)
@@ -1501,6 +1651,7 @@ fun MineScreen(
                 }
             }
 
+            // 版本信息
             item {
                 Text(
                     "版本 1.0.0",
@@ -1708,4 +1859,279 @@ fun WidgetConfigDialog(
             }
         }
     )
+}
+
+@Composable
+fun BackupDialog(
+    context: Context,
+    events: List<Event>,
+    categories: List<Category>,
+    darkThemeEnabled: Boolean,
+    onBackupSuccess: (String) -> Unit,
+    onRestore: (List<Event>, List<Category>, Boolean) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var showRestoreOptions by remember { mutableStateOf(false) }
+    var backupFiles by remember { mutableStateOf<List<java.io.File>>(emptyList()) }
+    var selectedFile by remember { mutableStateOf<java.io.File?>(null) }
+    
+    LaunchedEffect(showRestoreOptions) {
+        if (showRestoreOptions) {
+            backupFiles = getBackupFiles(context)
+        }
+    }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("数据备份与恢复") },
+        text = {
+            if (!showRestoreOptions) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "选择操作类型：",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    
+                    Button(
+                        onClick = {
+                            val path = simpleBackup(context, events, categories, darkThemeEnabled)
+                            if (path != null) {
+                                onBackupSuccess(path)
+                            } else {
+                                Toast.makeText(context, "备份失败", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Outlined.CloudUpload, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("备份当前数据")
+                    }
+                    
+                    OutlinedButton(
+                        onClick = { showRestoreOptions = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Outlined.CloudDownload, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("恢复数据")
+                    }
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "注意：恢复将覆盖当前所有数据！",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    
+                    if (backupFiles.isEmpty()) {
+                        Text(
+                            "没有找到备份文件",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Text(
+                            "选择要恢复的备份：",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        
+                        LazyColumn(
+                            modifier = Modifier.heightIn(max = 200.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(backupFiles) { file ->
+                                Card(
+                                    shape = RoundedCornerShape(8.dp),
+                                    border = if (selectedFile == file) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { selectedFile = file }
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            Icons.Outlined.DateRange,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column {
+                                            Text(
+                                                java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(file.nameWithoutExtension.substringAfter("_").toLong())),
+                                                fontSize = 14.sp,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                fontWeight = if (selectedFile == file) FontWeight.Bold else FontWeight.Normal
+                                            )
+                                            Text(
+                                                "${(file.length() / 1024)} KB",
+                                                fontSize = 12.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (showRestoreOptions) {
+                if (selectedFile != null) {
+                    TextButton(onClick = {
+                        val data = parseBackupFile(selectedFile!!)
+                        if (data != null) {
+                            onRestore(data.first, data.second, data.third)
+                        } else {
+                            Toast.makeText(context, "恢复失败，文件格式错误", Toast.LENGTH_SHORT).show()
+                        }
+                    }) {
+                        Text("恢复", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+                TextButton(onClick = {
+                    // 恢复示例数据
+                    onRestore(sampleEvents, defaultCategories, false)
+                }) {
+                    Text("恢复示例数据")
+                }
+            } else {
+                TextButton(onClick = onDismiss) {
+                    Text("关闭")
+                }
+            }
+        },
+        dismissButton = {
+            if (showRestoreOptions) {
+                TextButton(onClick = { 
+                    showRestoreOptions = false 
+                    selectedFile = null
+                }) {
+                    Text("返回")
+                }
+            }
+        }
+    )
+}
+
+private fun simpleBackup(context: Context, events: List<Event>, categories: List<Category>, darkThemeEnabled: Boolean): String? {
+    return try {
+        val timestamp = System.currentTimeMillis()
+        val fileName = "CountdownDay_Backup_$timestamp.txt"
+        val content = """
+            |=== 拾光倒数日备份 ===
+            |备份时间: ${timestamp}
+            |深色主题: ${darkThemeEnabled}
+            |
+            |=== 分类数据 ===
+            |${categories.joinToString("\n") { "${it.id}|${it.name}|${it.color.value}|${it.isSystem}" }}
+            |
+            |=== 事件数据 ===
+            |${events.joinToString("\n") { 
+                "${it.id}|${it.name}|${it.date}|${it.categoryId}|${it.note}|${it.isPinned}|${it.isPrivate}|${it.isWidget}|${it.gradientColors.joinToString(",") { c -> c.value.toString() }}|${it.gradientColorsDark.joinToString(",") { c -> c.value.toString() }}"
+            }}
+        """.trimMargin()
+        
+        val file = java.io.File(context.filesDir, fileName)
+        file.writeText(content)
+        file.absolutePath
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
+    }
+}
+
+private fun parseBackupFile(file: java.io.File): Triple<List<Event>, List<Category>, Boolean>? {
+    return try {
+        val content = file.readText()
+        val lines = content.lines()
+        
+        var darkThemeEnabled = false
+        val categories = mutableListOf<Category>()
+        val events = mutableListOf<Event>()
+        
+        var section = ""
+        for (line in lines) {
+            when {
+                line.startsWith("深色主题:") -> {
+                    darkThemeEnabled = line.substringAfter(":").trim().toBoolean()
+                }
+                line.startsWith("=== 分类数据 ===") -> {
+                    section = "categories"
+                }
+                line.startsWith("=== 事件数据 ===") -> {
+                    section = "events"
+                }
+                line.startsWith("===") || line.isBlank() -> {
+                    // Ignore
+                }
+                section == "categories" && line.isNotBlank() -> {
+                    val parts = line.split("|")
+                    if (parts.size >= 4) {
+                        categories.add(
+                            Category(
+                                id = parts[0].toLongOrNull() ?: System.currentTimeMillis(),
+                                name = parts[1],
+                                color = Color(parts[2].toLongOrNull() ?: Color.Gray.value),
+                                isSystem = parts[3].toBoolean()
+                            )
+                        )
+                    }
+                }
+                section == "events" && line.isNotBlank() -> {
+                    val parts = line.split("|")
+                    if (parts.size >= 10) {
+                        events.add(
+                            Event(
+                                id = parts[0].toLongOrNull() ?: System.currentTimeMillis(),
+                                name = parts[1],
+                                date = try { LocalDate.parse(parts[2]) } catch (e: Exception) { LocalDate.now() },
+                                categoryId = parts[3].toLongOrNull() ?: 1L,
+                                note = parts[4],
+                                isPinned = parts[5].toBoolean(),
+                                isPrivate = parts[6].toBoolean(),
+                                isWidget = parts[7].toBoolean(),
+                                gradientColors = parts[8].split(",").map { Color(it.toLongOrNull() ?: GradientColors[0][0].value) },
+                                gradientColorsDark = parts[9].split(",").map { Color(it.toLongOrNull() ?: GradientColorsDark[0][0].value) }
+                            )
+                        )
+                    }
+                }
+            }
+        }
+        Triple(events, categories, darkThemeEnabled)
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
+    }
+}
+
+private fun getBackupFiles(context: Context): List<java.io.File> {
+    return try {
+        val filesDir = context.filesDir
+        filesDir.listFiles { _, name -> name.startsWith("CountdownDay_Backup_") && name.endsWith(".txt") }
+            ?.sortedByDescending { it.lastModified() }
+            ?.toList() ?: emptyList()
+    } catch (e: Exception) {
+        e.printStackTrace()
+        emptyList()
+    }
+}
+
+enum class Screen {
+    HOME,
+    NEW,
+    CATEGORY,
+    MINE
 }
