@@ -42,8 +42,6 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 
 class MainActivity : ComponentActivity() {
-    private var lastBackPressTime: Long = 0
-    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -52,12 +50,6 @@ class MainActivity : ComponentActivity() {
                 ShiguangCountdownApp()
             }
         }
-    }
-    
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        // 这个方法已被废弃，但用于处理返回键
-        finish()
     }
 }
 
