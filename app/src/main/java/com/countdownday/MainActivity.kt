@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.countdownday.model.*
 import com.countdownday.ui.theme.*
+import com.countdownday.widget.CountdownWidgetProvider
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
@@ -69,6 +70,7 @@ fun ShiguangCountdownApp() {
     var showPasswordDialog by remember { mutableStateOf(false) }
     var privateEventToView by remember { mutableStateOf<Event?>(null) }
     var darkThemeEnabled by remember { mutableStateOf(false) }
+    var showWidgetDialog by remember { mutableStateOf(false) }
 
     ShiguangCountdownTheme(darkTheme = darkThemeEnabled) {
         // 返回键处理逻辑
@@ -118,7 +120,8 @@ fun ShiguangCountdownApp() {
                     events = events.map { if (it.id == selectedEvent!!.id) it.copy(isPrivate = !it.isPrivate) else it }
                     selectedEvent = selectedEvent?.copy(isPrivate = !selectedEvent!!.isPrivate)
                 },
-                onClose = { selectedEvent = null }
+                onClose = { selectedEvent = null },
+                onAddToWidget = { showWidgetDialog = true }
             )
 
             // 删除确认对话框
@@ -134,6 +137,34 @@ fun ShiguangCountdownApp() {
                     onDismiss = {
                         showDeleteDialog = false
                         eventToDelete = null
+                    }
+                )
+            }
+
+            // Widget配置对话框
+            if (showWidgetDialog && selectedEvent != null) {
+                WidgetConfigDialog(
+                    event = selectedEvent!!,
+                    onConfirm = { widgetId ->
+                        // 保存到Widget
+                        CountdownWidgetProvider.saveEventToWidget(
+                            context = context,
+                            appWidgetId = widgetId,
+                            eventName = selectedEvent!!.name,
+                            eventDate = selectedEvent!!.date.toString(),
+                            eventId = selectedEvent!!.id
+                        )
+                        // 通知Widget更新
+                        val intent = android.content.Intent(context, CountdownWidgetProvider::class.java).apply {
+                            action = android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                        }
+                        context.sendBroadcast(intent)
+                        
+                        Toast.makeText(context, "已添加到桌面小组件", Toast.LENGTH_SHORT).show()
+                        showWidgetDialog = false
+                    },
+                    onDismiss = {
+                        showWidgetDialog = false
                     }
                 )
             }
@@ -1158,7 +1189,8 @@ fun EventDetailScreen(
     onDelete: () -> Unit,
     onTogglePin: () -> Unit,
     onTogglePrivate: () -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    onAddToWidget: () -> Unit
 ) {
     val daysRemaining = ChronoUnit.DAYS.between(LocalDate.now(), event.date)
     val dateFormatter = DateTimeFormatter.ofPattern("yyyy年MM月dd日")
@@ -1281,7 +1313,7 @@ fun EventDetailScreen(
                     BottomActionButton(
                         icon = Icons.Outlined.DateRange,
                         label = "小组件",
-                        onClick = { /* Widget */ }
+                        onClick = onAddToWidget
                     )
                 }
             }
@@ -1602,6 +1634,71 @@ fun PasswordDialog(
                 onClick = { if (password.isNotEmpty()) onVerify() },
                 enabled = password.isNotEmpty()
             ) {
+                Text("确定")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消")
+            }
+        }
+    )
+}
+
+@Composable
+fun WidgetConfigDialog(
+    event: Event,
+    onConfirm: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("添加到桌面小组件") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "将此倒数日添加到桌面小组件？",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        Text(
+                            event.name,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            event.date.format(dateFormatter),
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+                
+                Text(
+                    "点击确定后，请在桌面小组件列表中选择要显示此事件的位置。",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(0) }) {
                 Text("确定")
             }
         },
