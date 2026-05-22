@@ -75,6 +75,10 @@ fun ShiguangCountdownApp() {
         mutableStateOf(loadDarkTheme(context))
     }
     
+    var backgroundIndex by remember {
+        mutableStateOf(loadBackgroundIndex(context))
+    }
+    
     var currentScreen by remember { mutableStateOf(Screen.HOME) }
     var selectedCategoryId by remember { mutableStateOf<Long?>(null) }
     var showAddEvent by remember { mutableStateOf(false) }
@@ -86,13 +90,33 @@ fun ShiguangCountdownApp() {
     var privateEventToView by remember { mutableStateOf<Event?>(null) }
     var showWidgetDialog by remember { mutableStateOf(false) }
     var showBackupDialog by remember { mutableStateOf(false) }
+    var showBackgroundDialog by remember { mutableStateOf(false) }
+
+    // 获取当前背景渐变
+    val backgroundGradient = remember(backgroundIndex, darkThemeEnabled) {
+        if (darkThemeEnabled) {
+            AppBackgroundGradientsDark.getOrElse(backgroundIndex) { AppBackgroundGradientsDark[0] }
+        } else {
+            AppBackgroundGradientsLight.getOrElse(backgroundIndex) { AppBackgroundGradientsLight[0] }
+        }
+    }
 
     // 数据变化时自动保存
-    LaunchedEffect(events, categories, darkThemeEnabled) {
-        saveData(context, events, categories, darkThemeEnabled)
+    LaunchedEffect(events, categories, darkThemeEnabled, backgroundIndex) {
+        saveData(context, events, categories, darkThemeEnabled, backgroundIndex)
     }
 
     ShiguangCountdownTheme(darkTheme = darkThemeEnabled) {
+        // 应用自定义背景
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = backgroundGradient
+                    )
+                )
+        ) {
         // 返回键处理逻辑
         var lastBackPressTime by remember { mutableLongStateOf(0L) }
         
@@ -269,9 +293,11 @@ fun ShiguangCountdownApp() {
                             categories = categories,
                             events = events,
                             darkThemeEnabled = darkThemeEnabled,
+                            backgroundIndex = backgroundIndex,
                             onThemeToggle = { darkThemeEnabled = it },
                             onCategoryManage = { currentScreen = Screen.CATEGORY },
-                            onBackupClick = { showBackupDialog = true }
+                            onBackupClick = { showBackupDialog = true },
+                            onBackgroundClick = { showBackgroundDialog = true }
                         )
                     }
 
@@ -313,6 +339,19 @@ fun ShiguangCountdownApp() {
                         )
                     }
 
+                    // 背景选择对话框
+                    if (showBackgroundDialog) {
+                        BackgroundDialog(
+                            darkThemeEnabled = darkThemeEnabled,
+                            currentIndex = backgroundIndex,
+                            onSelect = { index ->
+                                backgroundIndex = index
+                                showBackgroundDialog = false
+                            },
+                            onDismiss = { showBackgroundDialog = false }
+                        )
+                    }
+
                     // 密码对话框
                     if (showPasswordDialog && privateEventToView != null) {
                         PasswordDialog(
@@ -330,6 +369,7 @@ fun ShiguangCountdownApp() {
                 }
             }
         }
+        }
     }
 }
 
@@ -338,8 +378,9 @@ private const val PREFS_NAME = "CountdownDayPrefs"
 private const val KEY_EVENTS = "events"
 private const val KEY_CATEGORIES = "categories"
 private const val KEY_DARK_THEME = "darkTheme"
+private const val KEY_BACKGROUND_INDEX = "backgroundIndex"
 
-private fun saveData(context: Context, events: List<Event>, categories: List<Category>, darkThemeEnabled: Boolean) {
+private fun saveData(context: Context, events: List<Event>, categories: List<Category>, darkThemeEnabled: Boolean, backgroundIndex: Int = 0) {
     val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     val eventsStr = events.joinToString("|||") { event ->
         "${event.id}|${event.name}|${event.date}|${event.categoryId}|${event.note}|${event.isPinned}|${event.isPrivate}|${event.isWidget}|${event.gradientColors.joinToString(",")}|${event.gradientColorsDark.joinToString(",")}"
@@ -352,8 +393,14 @@ private fun saveData(context: Context, events: List<Event>, categories: List<Cat
         putString(KEY_EVENTS, eventsStr)
         putString(KEY_CATEGORIES, categoriesStr)
         putBoolean(KEY_DARK_THEME, darkThemeEnabled)
+        putInt(KEY_BACKGROUND_INDEX, backgroundIndex)
         apply()
     }
+}
+
+private fun loadBackgroundIndex(context: Context): Int {
+    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    return prefs.getInt(KEY_BACKGROUND_INDEX, 0)
 }
 
 private fun loadEvents(context: Context): List<Event>? {
@@ -1466,9 +1513,11 @@ fun MineScreen(
     categories: List<Category>,
     events: List<Event>,
     darkThemeEnabled: Boolean,
+    backgroundIndex: Int,
     onThemeToggle: (Boolean) -> Unit,
     onCategoryManage: () -> Unit,
-    onBackupClick: () -> Unit
+    onBackupClick: () -> Unit,
+    onBackgroundClick: () -> Unit
 ) {
     // 计算统计数据
     val today = LocalDate.now()
@@ -1482,7 +1531,6 @@ fun MineScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
     ) {
         TopAppBar(
             title = { },
@@ -1578,6 +1626,13 @@ fun MineScreen(
                             title = "主题模式",
                             subtitle = if (darkThemeEnabled) "深色" else "浅色",
                             onClick = { onThemeToggle(!darkThemeEnabled) }
+                        )
+                        Divider(modifier = Modifier.padding(horizontal = 16.dp))
+                        MineItem(
+                            icon = Icons.Outlined.Palette,
+                            title = "背景设置",
+                            subtitle = "当前样式 ${backgroundIndex + 1}",
+                            onClick = onBackgroundClick
                         )
                         Divider(modifier = Modifier.padding(horizontal = 16.dp))
                         MineItem(
@@ -2127,6 +2182,80 @@ private fun getBackupFiles(context: Context): List<java.io.File> {
         e.printStackTrace()
         emptyList()
     }
+}
+
+@Composable
+fun BackgroundDialog(
+    darkThemeEnabled: Boolean,
+    currentIndex: Int,
+    onSelect: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val backgroundGradients = if (darkThemeEnabled) {
+        AppBackgroundGradientsDark
+    } else {
+        AppBackgroundGradientsLight
+    }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("选择背景") },
+        text = {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(vertical = 8.dp)
+            ) {
+                items(backgroundGradients.size) { index ->
+                    val gradient = backgroundGradients[index]
+                    val isSelected = currentIndex == index
+                    
+                    Card(
+                        shape = RoundedCornerShape(12.dp),
+                        border = if (isSelected) BorderStroke(3.dp, MaterialTheme.colorScheme.primary) else null,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(80.dp)
+                            .clickable { onSelect(index) }
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.verticalGradient(
+                                        colors = gradient
+                                    )
+                                )
+                        ) {
+                            if (isSelected) {
+                                Icon(
+                                    Icons.Filled.CheckCircle,
+                                    contentDescription = "已选择",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier
+                                        .align(Alignment.CenterEnd)
+                                        .padding(16.dp)
+                                        .size(32.dp)
+                                )
+                            }
+                            Text(
+                                "样式 ${index + 1}",
+                                color = if (darkThemeEnabled) Color.White else Color.DarkGray,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier
+                                    .align(Alignment.CenterStart)
+                                    .padding(16.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("关闭")
+            }
+        }
+    )
 }
 
 enum class Screen {
