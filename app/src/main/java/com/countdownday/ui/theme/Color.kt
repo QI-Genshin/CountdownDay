@@ -57,6 +57,30 @@ val GradientColorsDark = listOf(
     listOf(Color(0xFF6B3419), Color(0xFF7C2D12))  // 深橙渐变
 )
 
+// 应用背景渐变选项（浅色模式）
+val AppBackgroundGradientsLight = listOf(
+    listOf(Color(0xFFF8F9FA), Color(0xFFF1F5F9)), // 原默认灰色
+    listOf(Color(0xE0EDFF), Color(0xFFF0F7FF)), // 淡蓝背景
+    listOf(Color(0xFFFFF0F3), Color(0xFFFFF5F7)), // 浅粉背景
+    listOf(Color(0xFFE8F5E9), Color(0xFFF1F8F2)), // 浅绿背景
+    listOf(Color(0xFFF3E5F5), Color(0xFFF9F0FA)), // 浅紫背景
+    listOf(Color(0xFFFFF8E8), Color(0xFFFFFDF5)), // 浅橙背景
+    listOf(Color(0xFFE0F7FA), Color(0xFFF0FCFE)), // 浅青背景
+    listOf(Color(0xFFFCE4EC), Color(0xFFFFF0F5))  // 浅玫背景
+)
+
+// 应用背景渐变选项（深色模式）
+val AppBackgroundGradientsDark = listOf(
+    listOf(Color(0xFF1A202C), Color(0xFF2D3748)), // 原默认深色
+    listOf(Color(0xFF1A365D), Color(0xFF2A4365)), // 深蓝背景
+    listOf(Color(0xFF553C9A), Color(0xFF6B46C1)), // 深紫背景
+    listOf(Color(0xFF1C4532), Color(0xFF22543D)), // 深绿背景
+    listOf(Color(0xFF322659), Color(0xFF44337A)), // 深紫蓝背景
+    listOf(Color(0xFF6B3419), Color(0xFF7C2D12)), // 深橙背景
+    listOf(Color(0xFF0B4F6C), Color(0xFF14364E)), // 深青背景
+    listOf(Color(0xFF742A64), Color(0xFF97266D))  // 深玫背景
+)
+
 // 分类颜色
 val CategoryColors = listOf(
     Color(0xFF81D4FA),
